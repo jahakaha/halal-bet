@@ -1,0 +1,55 @@
+[env]
+_.file = [".env"]
+
+[tools]
+go = "1.26.0"
+
+[tasks.test]
+description = "Run unit tests"
+run = "go test ./..."
+
+[tasks.lint]
+description = "Run linter"
+run = "go tool staticcheck ./..."
+
+[tasks."db:create"]
+description = "Create dev and test databases"
+run = [
+    "createdb -E UTF8 foot_dev",
+    "createdb -E UTF8 foot_test"
+] 
+
+
+[tasks."db:drop"]
+description = "Drop dev and test databases"
+run = [
+    "dropdb --if-exists foot_dev",
+    "dropdb --if-exists foot_test"
+]
+
+[tasks."db:reset"]
+description = "Reset dev and test databases"
+run = [
+    "mise db:drop",
+    "mise db:create"
+]
+
+[tasks."db:migrate"]
+description = "Apply migrations"
+run = "go tool goose up"
+
+[tasks."db:rollback"]
+description = "Rollback last migration"
+run = "go tool goose down"
+
+[tasks."db:status"]
+description = "Check migration status"
+run = "go tool goose status"
+
+[tasks."db:migration"]
+description = "Create migration"
+usage = 'arg "name"'
+run = 'go tool goose create ${usage_name} sql'
+
+[tasks."dwh:rollback"]
+description = "Rollback last DWH migration"
