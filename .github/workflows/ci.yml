@@ -9,14 +9,12 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    container: ghcr.io/jahakaha/halal-bet/ci:latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Run Linter
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          install-mode: goinstall
+        run: golangci-lint run
 
       - name: Run Tests
         run: go test -v ./...
