@@ -36,20 +36,20 @@ run = [
 
 [tasks."db:migrate"]
 description = "Apply migrations"
-run = "go tool goose up"
+run = "go tool goose -dir ./db/migrations up"
 
 [tasks."db:rollback"]
 description = "Rollback last migration"
-run = "go tool goose down"
+run = "go tool goose -dir ./db/migrations down"
 
 [tasks."db:status"]
 description = "Check migration status"
-run = "go tool goose status"
+run = "go tool goose -dir ./db/migrations status"
 
 [tasks."db:migration"]
 description = "Create migration"
 usage = 'arg "name"'
-run = 'go tool goose create ${usage_name} sql'
+run = 'go tool goose -dir ./db/migrations create "${usage_name}" sql'
 
 [tasks."dwh:rollback"]
 description = "Rollback last DWH migration"

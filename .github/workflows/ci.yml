@@ -14,13 +14,14 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26.0"
-          cache: true # Включаем кеширование модулей
+          go-version-file: go.mod
+          cache: false
 
       - name: Run Linter
-        uses: golangci/golangci-lint-action@v4
+        uses: golangci/golangci-lint-action@v6
         with:
           version: latest
+          install-mode: goinstall
 
       - name: Run Tests
         run: go test -v ./...
