@@ -23,13 +23,37 @@ func New(apiKey string) *Client {
 }
 
 type Event struct {
-	ID       int64  `json:"id"`
-	HomeTeam Team   `json:"homeTeam"`
-	AwayTeam Team   `json:"awayTeam"`
+	ID             int64      `json:"id"`
+	HomeTeam       Team       `json:"homeTeam"`
+	AwayTeam       Team       `json:"awayTeam"`
+	Tournament     Tournament `json:"tournament"`
+	StartTimestamp int64      `json:"startTimestamp"`
+	Status         EventStatus `json:"status"`
+	HomeScore      *EventScore `json:"homeScore"`
+	AwayScore      *EventScore `json:"awayScore"`
 }
 
 type Team struct {
 	Name string `json:"name"`
+}
+
+type Tournament struct {
+	Name             string           `json:"name"`
+	UniqueTournament UniqueTournament `json:"uniqueTournament"`
+}
+
+type UniqueTournament struct {
+	Name string `json:"name"`
+}
+
+type EventStatus struct {
+	Type        string `json:"type"`
+	Description string `json:"description"`
+}
+
+type EventScore struct {
+	Current  *int `json:"current"`
+	Display  *int `json:"display"`
 }
 
 type eventsResponse struct {
