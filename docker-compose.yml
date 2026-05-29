@@ -11,5 +11,32 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  db-prod:
+    image: postgres:15-alpine
+    profiles: [prod]
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata_prod:/var/lib/postgresql/data
+
+  bot:
+    build: .
+    profiles: [prod]
+    restart: always
+    depends_on:
+      - db-prod
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db-prod:5432/${POSTGRES_DB}?sslmode=disable
+      TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
+      FOOTBALL_DATA_ORG_KEY: ${FOOTBALL_DATA_ORG_KEY}
+      SOFASCORE_RAPIDAPI_KEY: ${SOFASCORE_RAPIDAPI_KEY}
+      PORT: 8080
+    ports:
+      - "8080:8080"
+
 volumes:
   pgdata:
+  pgdata_prod:

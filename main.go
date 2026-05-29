@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
 	tele "gopkg.in/telebot.v3"
 
 	"halal-bet/internal/bot"
@@ -20,7 +23,18 @@ import (
 )
 
 func main() {
-	db, err := pgxpool.New(context.Background(), os.Getenv("DATABASE_URL"))
+	dsn := os.Getenv("DATABASE_URL")
+
+	sqlDB, err := sql.Open("pgx", dsn)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := goose.Up(sqlDB, "db/migrations"); err != nil {
+		log.Fatalf("migrations: %v", err)
+	}
+	_ = sqlDB.Close()
+
+	db, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
 		log.Fatal(err)
 	}
