@@ -1,12 +1,11 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:15-alpine
+    profiles: [accessories]
     environment:
-      POSTGRES_USER: bot_user
-      POSTGRES_PASSWORD: bot_password
-      POSTGRES_DB: wc2026_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: foot_dev
     ports:
       - "5432:5432"
     volumes:

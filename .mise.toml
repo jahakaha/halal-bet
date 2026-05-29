@@ -4,27 +4,47 @@ _.file = [".env"]
 [tools]
 go = "1.26.0"
 
+[tasks.dev]
+description = "Run dev server with hot reload"
+run = "go tool air"
+
 [tasks.test]
-description = "Run unit tests"
-run = "go test ./..."
+description = "Run all tests (unit + integration)"
+run = "TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/foot_test?sslmode=disable go test ./... -count=1"
+
+[tasks."test:integration"]
+description = "Run integration tests (requires running Postgres)"
+run = "TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/foot_test?sslmode=disable go test ./internal/repository/... -v -count=1"
 
 [tasks.lint]
 description = "Run linter"
 run = "go tool staticcheck ./..."
 
+[tasks."accessories:up"]
+description = "Run docker accessories"
+run = 'docker compose --profile accessories up -d'
+
+[tasks."accessories:down"]
+description = "Shutdown docker accessories"
+run = 'docker compose --profile accessories stop'
+
+[tasks."accessories:remove"]
+description = "Shutdown docker accessories"
+run = 'docker compose --profile accessories down -v'
+
 [tasks."db:create"]
 description = "Create dev and test databases"
 run = [
-    "createdb -E UTF8 foot_dev",
-    "createdb -E UTF8 foot_test"
-] 
+    "PGPASSWORD=postgres createdb -E UTF8 -h localhost -U postgres foot_dev",
+    "PGPASSWORD=postgres createdb -E UTF8 -h localhost -U postgres foot_test"
+]
 
 
 [tasks."db:drop"]
 description = "Drop dev and test databases"
 run = [
-    "dropdb --if-exists foot_dev",
-    "dropdb --if-exists foot_test"
+    "dropdb -h localhost -U postgres --if-exists foot_dev",
+    "dropdb -h localhost -U postgres --if-exists foot_test"
 ]
 
 [tasks."db:reset"]
@@ -35,8 +55,12 @@ run = [
 ]
 
 [tasks."db:migrate"]
-description = "Apply migrations"
+description = "Apply migrations to dev DB"
 run = "go tool goose -dir ./db/migrations up"
+
+[tasks."db:migrate:test"]
+description = "Apply migrations to test DB"
+run = "GOOSE_DBSTRING=postgres://postgres:postgres@localhost:5432/foot_test?sslmode=disable go tool goose -dir ./db/migrations up"
 
 [tasks."db:rollback"]
 description = "Rollback last migration"

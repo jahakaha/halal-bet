@@ -1,0 +1,15 @@
+root = "."
+
+[build]
+    cmd = "go build -o tmp/api ./cmd/api"
+    bin = "tmp/api"
+    include_ext = ["go"]
+    exclude_dir = ["tmp", "vendor", ".git", "db"]
+    delay = 500
+    send_interrupt = true
+
+[color]
+    main = "yellow"
+
+[log]
+    time = true
