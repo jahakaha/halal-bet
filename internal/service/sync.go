@@ -172,6 +172,7 @@ func normalizeName(s string) string {
 	return strings.TrimSpace(s)
 }
 
+
 func convertMatches(apiMatches []footballdata.Match) ([]model.Match, error) {
 	matches := make([]model.Match, 0, len(apiMatches))
 	for _, am := range apiMatches {
