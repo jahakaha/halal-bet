@@ -4,6 +4,10 @@ _.file = [".env"]
 [tools]
 go = "1.26.0"
 
+[tasks.dev]
+description = "Run dev server with hot reload"
+run = "go tool air"
+
 [tasks.test]
 description = "Run unit tests"
 run = "go test ./..."
@@ -12,19 +16,31 @@ run = "go test ./..."
 description = "Run linter"
 run = "go tool staticcheck ./..."
 
+[tasks."accessories:up"]
+description = "Run docker accessories"
+run = 'docker compose --profile accessories up -d'
+
+[tasks."accessories:down"]
+description = "Shutdown docker accessories"
+run = 'docker compose --profile accessories stop'
+
+[tasks."accessories:remove"]
+description = "Shutdown docker accessories"
+run = 'docker compose --profile accessories down -v'
+
 [tasks."db:create"]
 description = "Create dev and test databases"
 run = [
-    "createdb -E UTF8 foot_dev",
-    "createdb -E UTF8 foot_test"
+    "createdb -E UTF8 -h localhost -U postgres foot_dev",
+    "createdb -E UTF8 -h localhost -U postgres foot_test"
 ] 
 
 
 [tasks."db:drop"]
 description = "Drop dev and test databases"
 run = [
-    "dropdb --if-exists foot_dev",
-    "dropdb --if-exists foot_test"
+    "dropdb -h localhost -U postgres --if-exists foot_dev",
+    "dropdb -h localhost -U postgres --if-exists foot_test"
 ]
 
 [tasks."db:reset"]
@@ -36,20 +52,20 @@ run = [
 
 [tasks."db:migrate"]
 description = "Apply migrations"
-run = "go tool goose up"
+run = "go tool goose -dir ./db/migrations up"
 
 [tasks."db:rollback"]
 description = "Rollback last migration"
-run = "go tool goose down"
+run = "go tool goose -dir ./db/migrations down"
 
 [tasks."db:status"]
 description = "Check migration status"
-run = "go tool goose status"
+run = "go tool goose -dir ./db/migrations status"
 
 [tasks."db:migration"]
 description = "Create migration"
 usage = 'arg "name"'
-run = 'go tool goose create ${usage_name} sql'
+run = 'go tool goose -dir ./db/migrations create "${usage_name}" sql'
 
 [tasks."dwh:rollback"]
 description = "Rollback last DWH migration"
