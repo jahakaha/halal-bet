@@ -172,6 +172,45 @@ func normalizeName(s string) string {
 	return strings.TrimSpace(s)
 }
 
+func convertSofascoreMatches(events []sofascore.Event, tournamentFilter string) []model.Match {
+	filter := strings.ToLower(tournamentFilter)
+	matches := make([]model.Match, 0)
+	for _, e := range events {
+		name := strings.ToLower(e.Tournament.UniqueTournament.Name)
+		if !strings.Contains(name, filter) {
+			name = strings.ToLower(e.Tournament.Name)
+			if !strings.Contains(name, filter) {
+				continue
+			}
+		}
+
+		status := model.MatchStatusTimed
+		switch e.Status.Type {
+		case "inprogress":
+			status = model.MatchStatusInPlay
+		case "finished":
+			status = model.MatchStatusFinished
+		}
+
+		m := model.Match{
+			ExternalID: e.ID,
+			HomeTeam:   e.HomeTeam.Name,
+			AwayTeam:   e.AwayTeam.Name,
+			MatchDate:  time.Unix(e.StartTimestamp, 0).UTC(),
+			Status:     status,
+			Stage:      "FINAL",
+		}
+		if e.HomeScore != nil && e.HomeScore.Current != nil {
+			m.HomeScore = e.HomeScore.Current
+		}
+		if e.AwayScore != nil && e.AwayScore.Current != nil {
+			m.AwayScore = e.AwayScore.Current
+		}
+		matches = append(matches, m)
+	}
+	return matches
+}
+
 func convertMatches(apiMatches []footballdata.Match) ([]model.Match, error) {
 	matches := make([]model.Match, 0, len(apiMatches))
 	for _, am := range apiMatches {
