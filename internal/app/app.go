@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"context"
@@ -22,21 +22,21 @@ import (
 	"halal-bet/internal/service"
 )
 
-func main() {
+func Run() error {
 	dsn := os.Getenv("DATABASE_URL")
 
 	sqlDB, err := sql.Open("pgx", dsn)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("open db: %w", err)
 	}
 	if err := goose.Up(sqlDB, "db/migrations"); err != nil {
-		log.Fatalf("migrations: %v", err)
+		return fmt.Errorf("migrations: %w", err)
 	}
 	_ = sqlDB.Close()
 
 	db, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("pgxpool: %w", err)
 	}
 	defer db.Close()
 
@@ -45,7 +45,7 @@ func main() {
 		Poller: &tele.LongPoller{Timeout: 10},
 	})
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("telegram bot: %w", err)
 	}
 
 	users := repository.NewUserRepository(db)
@@ -112,5 +112,5 @@ func main() {
 	}
 
 	log.Printf("listening on :%s", port)
-	log.Fatal(http.ListenAndServe(":"+port, r))
+	return http.ListenAndServe(":"+port, r)
 }
