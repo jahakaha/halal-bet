@@ -11,7 +11,7 @@ import (
 func testServer(body string, status int) (*httptest.Server, *Client) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(status)
-		w.Write([]byte(body))
+		_, _ = w.Write([]byte(body))
 	}))
 	c := New("test-key")
 	c.httpClient = &http.Client{

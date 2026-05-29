@@ -50,7 +50,7 @@ func (h *Handler) Register(b *tele.Bot) {
 	b.Handle(tele.OnCallback, h.OnCallback)
 	b.Handle(tele.OnAddedToGroup, h.OnAddedToGroup)
 
-	b.SetCommands([]tele.Command{
+	_ = b.SetCommands([]tele.Command{
 		{Text: "matches", Description: "Матчи сегодня"},
 		{Text: "bets", Description: "Ставки на сегодня"},
 		{Text: "leaderboard", Description: "Таблица группы"},

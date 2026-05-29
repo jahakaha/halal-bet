@@ -3,12 +3,9 @@ package bot
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	tele "gopkg.in/telebot.v3"
-
-	"halal-bet/internal/model"
 )
 
 var almatyLoc = mustLoadLocation("Asia/Almaty")
@@ -64,17 +61,3 @@ func (h *Handler) Matches(c tele.Context) error {
 	return c.Send("Матчи сегодня:", &tele.ReplyMarkup{InlineKeyboard: rows})
 }
 
-func matchCaption(m model.Match) string {
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("*%s — %s*\n", m.HomeTeam, m.AwayTeam))
-
-	localTime := m.MatchDate.In(almatyLoc).Format("02 Jan · 15:04")
-	if m.Group != nil {
-		sb.WriteString(fmt.Sprintf("%s · %s алм.\n", strings.ReplaceAll(*m.Group, "_", " "), localTime))
-	} else {
-		sb.WriteString(fmt.Sprintf("%s алм.\n", localTime))
-	}
-
-	sb.WriteString("\nВведи счёт (например: 2:1)")
-	return sb.String()
-}
