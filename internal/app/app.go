@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,14 +16,19 @@ import (
 	"halal-bet/internal/bot"
 	"halal-bet/internal/client/footballdata"
 	"halal-bet/internal/client/sofascore"
+	"halal-bet/internal/config"
+	"halal-bet/internal/handler"
 	"halal-bet/internal/repository"
 	"halal-bet/internal/service"
 )
 
 func Run() error {
-	dsn := os.Getenv("DATABASE_URL")
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("config: %w", err)
+	}
 
-	sqlDB, err := sql.Open("pgx", dsn)
+	sqlDB, err := sql.Open("pgx", cfg.DatabaseURL)
 	if err != nil {
 		return fmt.Errorf("open db: %w", err)
 	}
@@ -34,14 +37,14 @@ func Run() error {
 	}
 	_ = sqlDB.Close()
 
-	db, err := pgxpool.New(context.Background(), dsn)
+	db, err := pgxpool.New(context.Background(), cfg.DatabaseURL)
 	if err != nil {
 		return fmt.Errorf("pgxpool: %w", err)
 	}
 	defer db.Close()
 
 	b, err := tele.NewBot(tele.Settings{
-		Token:  os.Getenv("TELEGRAM_TOKEN"),
+		Token:  cfg.TelegramToken,
 		Poller: &tele.LongPoller{Timeout: 10},
 	})
 	if err != nil {
@@ -53,8 +56,8 @@ func Run() error {
 	predictions := repository.NewPredictionRepository(db)
 	groups := repository.NewGroupRepository(db)
 
-	fdClient := footballdata.New(os.Getenv("FOOTBALL_DATA_ORG_KEY"))
-	ssClient := sofascore.New(os.Getenv("SOFASCORE_RAPIDAPI_KEY"))
+	fdClient := footballdata.New(cfg.FootballDataKey)
+	ssClient := sofascore.New(cfg.SofascoreKey)
 	syncSvc := service.NewSyncService(fdClient, ssClient, matches, predictions)
 	notifSvc := service.NewNotificationService(b, groups, matches)
 	lbSvc := service.NewLeaderboardService(groups, matches, predictions)
@@ -66,51 +69,8 @@ func Run() error {
 	go b.Start()
 
 	r := chi.NewRouter()
-	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-	r.Post("/sync/wc2026", func(w http.ResponseWriter, req *http.Request) {
-		n, err := syncSvc.SyncWC2026(req.Context())
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		fmt.Fprintf(w, "synced %d matches\n", n)
-	})
-	r.Post("/sync/cl-final", func(w http.ResponseWriter, req *http.Request) {
-		n, err := syncSvc.SyncCLFinal(req.Context())
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		fmt.Fprintf(w, "synced %d matches\n", n)
-	})
-	r.Post("/sync/events", func(w http.ResponseWriter, req *http.Request) {
-		dateStr := req.URL.Query().Get("date")
-		var date time.Time
-		var err error
-		if dateStr == "" {
-			date = time.Now().UTC()
-		} else {
-			date, err = time.Parse("2006-01-02", dateStr)
-			if err != nil {
-				http.Error(w, "invalid date, use YYYY-MM-DD", http.StatusBadRequest)
-				return
-			}
-		}
-		n, err := syncSvc.SyncMatchEvents(req.Context(), date)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		fmt.Fprintf(w, "synced events for %d matches\n", n)
-	})
+	handler.New(syncSvc).Register(r)
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
-	log.Printf("listening on :%s", port)
-	return http.ListenAndServe(":"+port, r)
+	log.Printf("listening on :%s", cfg.Port)
+	return http.ListenAndServe(":"+cfg.Port, r)
 }

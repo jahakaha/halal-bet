@@ -103,7 +103,7 @@ func (h *Handler) openMatchBet(c tele.Context, idStr string) error {
 	if err != nil {
 		return c.Send("Матч не найден.")
 	}
-	if m.Status != model.MatchStatusTimed {
+	if time.Until(m.MatchDate) < 5*time.Minute {
 		return c.Send("Ставки на этот матч уже закрыты.")
 	}
 
