@@ -1,0 +1,31 @@
+name: Deploy
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            cd halal-bet
+
+            git pull origin main
+
+            cat > .env <<EOF
+            POSTGRES_USER=postgres
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            POSTGRES_DB=halalbet
+            TELEGRAM_TOKEN=${{ secrets.TELEGRAM_TOKEN }}
+            FOOTBALL_DATA_ORG_KEY=${{ secrets.FOOTBALL_DATA_ORG_KEY }}
+            SOFASCORE_RAPIDAPI_KEY=${{ secrets.SOFASCORE_RAPIDAPI_KEY }}
+            EOF
+
+            docker compose --profile prod up -d --build

@@ -18,11 +18,10 @@ func mustLoadLocation(name string) *time.Location {
 	return loc
 }
 
-// matchWindow returns the range for /matches — extended to 72h during UCL final test.
-// TODO: revert to 24h after test.
+// matchWindow returns matches for today and tomorrow (48h from midnight).
 func matchWindow() (from, to time.Time) {
 	from, _ = todayWindow()
-	to = from.Add(72 * time.Hour)
+	to = from.Add(48 * time.Hour)
 	return
 }
 
