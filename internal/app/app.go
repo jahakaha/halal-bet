@@ -55,6 +55,7 @@ func Run() error {
 	matches := repository.NewMatchRepository(db)
 	predictions := repository.NewPredictionRepository(db)
 	groups := repository.NewGroupRepository(db)
+	tournament := repository.NewTournamentRepository(db)
 
 	fdClient := footballdata.New(cfg.FootballDataKey)
 	ssClient := sofascore.New(cfg.SofascoreKey)
@@ -63,7 +64,7 @@ func Run() error {
 	lbSvc := service.NewLeaderboardService(groups, matches, predictions)
 	service.StartScheduler(notifSvc, syncSvc)
 
-	h := bot.NewHandler(users, matches, predictions, groups, lbSvc)
+	h := bot.NewHandler(users, matches, predictions, groups, tournament, lbSvc)
 	h.Register(b)
 
 	go b.Start()

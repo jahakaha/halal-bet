@@ -14,6 +14,7 @@ type MatchRepository interface {
 	Upsert(ctx context.Context, matches []model.Match) error
 	GetByID(ctx context.Context, id int64) (*model.Match, error)
 	GetUpcoming(ctx context.Context, from, to time.Time) ([]model.Match, error)
+	GetFinishedInWindow(ctx context.Context, from, to time.Time) ([]model.Match, error)
 	GetFinishedWithPendingScores(ctx context.Context) ([]model.Match, error)
 	GetInPlay(ctx context.Context) ([]model.Match, error)
 	GetFinishedForEventSync(ctx context.Context) ([]model.Match, error)
@@ -102,6 +103,40 @@ func (r *matchRepository) GetUpcoming(ctx context.Context, from, to time.Time) (
 		From("wc2026_matches").
 		Where(sq.GtOrEq{"match_date": from.UTC()}).
 		Where(sq.LtOrEq{"match_date": to.UTC()}).
+		OrderBy("match_date ASC").
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := r.db.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var matches []model.Match
+	for rows.Next() {
+		var m model.Match
+		if err := rows.Scan(
+			&m.ID, &m.ExternalID, &m.HomeTeam, &m.AwayTeam,
+			&m.MatchDate, &m.Status, &m.HomeScore, &m.AwayScore,
+			&m.Stage, &m.Group, &m.Matchday, &m.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		matches = append(matches, m)
+	}
+	return matches, rows.Err()
+}
+
+func (r *matchRepository) GetFinishedInWindow(ctx context.Context, from, to time.Time) ([]model.Match, error) {
+	sql, args, err := psql.
+		Select("id", "external_id", "home_team", "away_team", "match_date", "status", "home_score", "away_score", "stage", "group_name", "matchday", "updated_at").
+		From("wc2026_matches").
+		Where(sq.GtOrEq{"match_date": from.UTC()}).
+		Where(sq.Lt{"match_date": to.UTC()}).
+		Where("status = ?", string(model.MatchStatusFinished)).
 		OrderBy("match_date ASC").
 		ToSql()
 	if err != nil {
