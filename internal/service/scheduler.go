@@ -13,12 +13,12 @@ func StartScheduler(notif *NotificationService, sync *SyncService) {
 	go runDaily(13, 0, almatyLoc, "results", func() {
 		ctx := context.Background()
 		syncAll(ctx, sync)
-		notif.SendDailyResults(ctx)
+		notif.SendDailyResults(ctx, time.Now())
 	})
 	go runDaily(20, 0, almatyLoc, "matches", func() {
 		ctx := context.Background()
 		syncAll(ctx, sync)
-		notif.SendDailyMatches(ctx)
+		notif.SendDailyMatches(ctx, time.Now())
 	})
 	go runLiveSync(sync)
 }
