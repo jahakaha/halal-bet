@@ -10,8 +10,12 @@ import (
 	"syscall"
 	"time"
 
+	"database/sql"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
 	tele "gopkg.in/telebot.v3"
 
 	"halal-bet/internal/bot"
@@ -22,6 +26,15 @@ import (
 )
 
 func main() {
+	sqlDB, err := sql.Open("pgx", os.Getenv("DATABASE_URL"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := goose.Up(sqlDB, "db/migrations"); err != nil {
+		log.Fatalf("migrations: %v", err)
+	}
+	_ = sqlDB.Close()
+
 	db, err := pgxpool.New(context.Background(), os.Getenv("DATABASE_URL"))
 	if err != nil {
 		log.Fatal(err)
