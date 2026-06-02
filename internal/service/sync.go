@@ -41,14 +41,6 @@ func (s *SyncService) SyncWC2026(ctx context.Context) (int, error) {
 	return s.upsert(ctx, apiMatches)
 }
 
-func (s *SyncService) SyncCLFinal(ctx context.Context) (int, error) {
-	apiMatches, err := s.client.GetCLFinal(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("fetch cl final: %w", err)
-	}
-	return s.upsert(ctx, apiMatches)
-}
-
 func (s *SyncService) upsert(ctx context.Context, apiMatches []footballdata.Match) (int, error) {
 	matches, err := convertMatches(apiMatches)
 	if err != nil {

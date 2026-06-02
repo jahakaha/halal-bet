@@ -75,7 +75,3 @@ func (c *Client) getMatches(ctx context.Context, url string) ([]Match, error) {
 func (c *Client) GetWC2026Matches(ctx context.Context) ([]Match, error) {
 	return c.getMatches(ctx, baseURL+"/competitions/WC/matches?season=2026")
 }
-
-func (c *Client) GetCLFinal(ctx context.Context) ([]Match, error) {
-	return c.getMatches(ctx, baseURL+"/competitions/CL/matches?stage=FINAL")
-}
