@@ -23,7 +23,9 @@ services:
       - pgdata_prod:/var/lib/postgresql/data
 
   bot:
-    build: .
+    build:
+      context: .
+      target: production
     profiles: [prod]
     restart: always
     depends_on:
