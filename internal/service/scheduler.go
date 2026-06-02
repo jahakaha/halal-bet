@@ -27,9 +27,6 @@ func syncAll(ctx context.Context, sync *SyncService) {
 	if _, err := sync.SyncWC2026(ctx); err != nil {
 		log.Printf("sync: wc2026: %v", err)
 	}
-	if _, err := sync.SyncCLFinal(ctx); err != nil {
-		log.Printf("sync: cl-final: %v", err)
-	}
 }
 
 // runLiveSync polls for IN_PLAY matches only during the active window (20:00–13:00 Almaty).
@@ -55,9 +52,6 @@ func runLiveSync(sync *SyncService) {
 			log.Printf("live-sync: %d match(es) in play, syncing", len(inPlay))
 			if _, err := sync.SyncWC2026(ctx); err != nil {
 				log.Printf("live-sync: wc2026: %v", err)
-			}
-			if _, err := sync.SyncCLFinal(ctx); err != nil {
-				log.Printf("live-sync: cl-final: %v", err)
 			}
 			time.Sleep(2 * time.Minute)
 		} else {

@@ -99,14 +99,6 @@ func main() {
 		}
 		fmt.Fprintf(w, "synced %d matches\n", n)
 	})
-	r.Post("/sync/cl-final", func(w http.ResponseWriter, req *http.Request) {
-		n, err := syncSvc.SyncCLFinal(req.Context())
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		fmt.Fprintf(w, "synced %d matches\n", n)
-	})
 	r.Post("/sync/events", func(w http.ResponseWriter, req *http.Request) {
 		dateStr := req.URL.Query().Get("date")
 		var date time.Time
