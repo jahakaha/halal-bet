@@ -45,6 +45,7 @@ func NewHandler(
 
 func (h *Handler) Register(b *tele.Bot) {
 	b.Handle("/start", h.Start)
+	b.Handle("/description", h.Description)
 	b.Handle("/matches", h.Matches)
 	b.Handle("/leaderboard", h.Leaderboard)
 	b.Handle("/bets", h.Bets)
@@ -61,6 +62,7 @@ func (h *Handler) Register(b *tele.Bot) {
 		{Text: "leaderboard", Description: "Таблица тотализатора"},
 		{Text: "groups", Description: "Таблица групп ЧМ26"},
 		{Text: "predict", Description: "Предсказания на ЧМ26"},
+		{Text: "description", Description: "Правила игры"},
 	})
 }
 
@@ -86,7 +88,13 @@ func (h *Handler) Start(c tele.Context) error {
 		return h.openMatchBet(c, idStr)
 	}
 
-	return c.Send(fmt.Sprintf("Привет, %s! Добро пожаловать в HalalBet", sender.FirstName))
+	name := sender.Username
+	if name == "" {
+		name = sender.FirstName
+	} else {
+		name = "@" + name
+	}
+	return c.Send(fmt.Sprintf("Ассаламу алейкум, %s!\n\nДобро пожаловать в *HalalBet* — тотализатор ЧМ 2026.\n\nПравила и система очков: /description", name), tele.ModeMarkdown)
 }
 
 func (h *Handler) OnAddedToGroup(c tele.Context) error {
@@ -133,6 +141,34 @@ func (h *Handler) openMatchBet(c tele.Context, idStr string) error {
 		msgID:    sent.ID,
 	})
 	return nil
+}
+
+func (h *Handler) Description(c tele.Context) error {
+	return c.Send(`*HalalBet — правила игры*
+
+Делай ставки на матчи ЧМ 2026 и соревнуйся с друзьями.
+
+*Типы ставок:*
+🎯 Точный счёт — +5 очков
+⚖️ Разница голов — +3 очка
+🏆 Исход матча — +1 очко
+
+*Дополнительные ставки:*
+🥅 Пенальти в матче — +2 / −1
+🟥 Красная карточка — +3 / −1
+🤦 Автогол — +4 / −1
+
+*Double Down 🔥*
+Удваивает очки за правильный прогноз.
+При неправильном — −1 очко.
+Лимит: 5 использований за турнир.
+
+*Предсказания на турнир:*
+🏆 Чемпион ЧМ 2026 — +20 очков
+⚽️ Лучший бомбардир — +15 очков
+Дедлайн: 11 июня 23:30 (Алматы)
+
+Команды: /matches · /leaderboard · /groups`, tele.ModeMarkdown)
 }
 
 // registerGroupMember авто-добавляет пользователя в группу если сообщение из группового чата.
