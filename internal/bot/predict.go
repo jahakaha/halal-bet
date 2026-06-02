@@ -421,8 +421,8 @@ func buildPredictKeyboard(st *predictionState) *tele.ReplyMarkup {
 
 	rows = append(rows,
 		[]tele.InlineButton{{Text: check(specialPenalty) + "🥅 Пенальти +2/−1", Data: "s|penalty"}},
-		[]tele.InlineButton{{Text: check(specialRedCard) + "🟥 Красная +3/−1", Data: "s|red_card"}},
-		[]tele.InlineButton{{Text: check(specialOwnGoal) + "🤦 Автогол +4/−1", Data: "s|own_goal"}},
+		[]tele.InlineButton{{Text: check(specialRedCard) + "🟥 Красная +3/−2", Data: "s|red_card"}},
+		[]tele.InlineButton{{Text: check(specialOwnGoal) + "🤦 Автогол +5/−3", Data: "s|own_goal"}},
 		[]tele.InlineButton{
 			{Text: "Сохранить", Data: "sv"},
 		},
