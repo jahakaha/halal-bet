@@ -67,15 +67,15 @@ func riskyPoints(p *Prediction, m *Match) int {
 		if *m.HadRedCard {
 			pts += 3
 		} else {
-			pts -= 1
+			pts -= 2
 		}
 	}
 
 	if p.BetOwnGoal && m.HadOwnGoal != nil {
 		if *m.HadOwnGoal {
-			pts += 4
+			pts += 5
 		} else {
-			pts -= 1
+			pts -= 3
 		}
 	}
 

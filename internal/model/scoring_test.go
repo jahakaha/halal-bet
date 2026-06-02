@@ -169,8 +169,8 @@ func TestCalcPoints_RiskyBets(t *testing.T) {
 		m.HadRedCard = nil
 		m.HadOwnGoal = boolp(true)
 		got := CalcPoints(p, m)
-		if *got != 9 { // 5 + 4
-			t.Errorf("want 9, got %d", *got)
+		if *got != 10 { // 5 + 5
+			t.Errorf("want 10, got %d", *got)
 		}
 	})
 
