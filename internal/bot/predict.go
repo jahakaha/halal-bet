@@ -15,6 +15,10 @@ import (
 func (h *Handler) OnCallback(c tele.Context) error {
 	data := c.Data()
 	switch {
+	case strings.HasPrefix(data, "tp|"):
+		return h.handleTournamentBet(c, data[3:])
+	case strings.HasPrefix(data, "grp|"):
+		return h.handleGroupStandings(c, data[4:])
 	case strings.HasPrefix(data, "m|"):
 		return h.handleMatchSelect(c, data[2:])
 	case strings.HasPrefix(data, "bt|"):
@@ -35,12 +39,18 @@ func (h *Handler) OnText(c tele.Context) error {
 	if c.Chat().Type != tele.ChatPrivate {
 		return nil
 	}
+
+	text := strings.TrimSpace(c.Text())
+
+	// Tournament prediction input takes priority
+	if betType, ok := h.store.getTournament(c.Sender().ID); ok {
+		return h.handleTournamentText(c, betType, text)
+	}
+
 	st, ok := h.store.get(c.Sender().ID)
 	if !ok || st.betType == "" {
 		return nil
 	}
-
-	text := strings.TrimSpace(c.Text())
 
 	switch st.betType {
 	case model.BetTypeExact:

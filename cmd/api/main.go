@@ -40,6 +40,7 @@ func main() {
 	matches := repository.NewMatchRepository(db)
 	predictions := repository.NewPredictionRepository(db)
 	groups := repository.NewGroupRepository(db)
+	tournament := repository.NewTournamentRepository(db)
 
 	fdClient := footballdata.New(os.Getenv("FOOTBALL_DATA_ORG_KEY"))
 	ssClient := sofascore.New(os.Getenv("SOFASCORE_RAPIDAPI_KEY"))
@@ -48,7 +49,7 @@ func main() {
 	lbSvc := service.NewLeaderboardService(groups, matches, predictions)
 	service.StartScheduler(notifSvc, syncSvc)
 
-	h := bot.NewHandler(users, matches, predictions, groups, lbSvc)
+	h := bot.NewHandler(users, matches, predictions, groups, tournament, lbSvc)
 	h.Register(b)
 
 	go b.Start()
@@ -56,6 +57,39 @@ func main() {
 	r := chi.NewRouter()
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
+	})
+	r.Post("/debug/set-date", func(w http.ResponseWriter, req *http.Request) {
+		dateStr := req.URL.Query().Get("date")
+		if dateStr == "" {
+			bot.SetTestDate(nil)
+			fmt.Fprintln(w, "test date cleared")
+			return
+		}
+		d, err := time.Parse("2006-01-02", dateStr)
+		if err != nil {
+			http.Error(w, "invalid date, use YYYY-MM-DD", http.StatusBadRequest)
+			return
+		}
+		bot.SetTestDate(&d)
+		fmt.Fprintf(w, "test date set to %s\n", dateStr)
+	})
+	r.Post("/notify/results", func(w http.ResponseWriter, req *http.Request) {
+		now, err := parseDateParam(req.URL.Query().Get("date"))
+		if err != nil {
+			http.Error(w, "invalid date, use YYYY-MM-DD", http.StatusBadRequest)
+			return
+		}
+		notifSvc.SendDailyResults(req.Context(), now)
+		fmt.Fprintln(w, "results sent")
+	})
+	r.Post("/notify/matches", func(w http.ResponseWriter, req *http.Request) {
+		now, err := parseDateParam(req.URL.Query().Get("date"))
+		if err != nil {
+			http.Error(w, "invalid date, use YYYY-MM-DD", http.StatusBadRequest)
+			return
+		}
+		notifSvc.SendDailyMatches(req.Context(), now)
+		fmt.Fprintln(w, "matches sent")
 	})
 	r.Post("/sync/wc2026", func(w http.ResponseWriter, req *http.Request) {
 		n, err := syncSvc.SyncWC2026(req.Context())
@@ -117,3 +151,11 @@ func main() {
 	defer cancel()
 	_ = srv.Shutdown(ctx)
 }
+
+func parseDateParam(s string) (time.Time, error) {
+	if s == "" {
+		return time.Now(), nil
+	}
+	return time.Parse("2006-01-02", s)
+}
+
