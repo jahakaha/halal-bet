@@ -1,0 +1,17 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/api ./cmd/api"
+  entrypoint = ["./tmp/api"]
+  exclude_dir = ["tmp", "vendor", ".git", "db"]
+  exclude_regex = ["_test.go"]
+  include_ext = ["go"]
+  pre_cmd = ["pkill -f './tmp/api' || true"]
+  delay = 1000
+  kill_delay = "3s"
+  send_interrupt = true
+  stop_on_error = false
+
+[log]
+  time = true

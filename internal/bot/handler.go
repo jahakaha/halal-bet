@@ -19,6 +19,7 @@ type Handler struct {
 	matches     repository.MatchRepository
 	predictions repository.PredictionRepository
 	groups      repository.GroupRepository
+	tournament  repository.TournamentRepository
 	leaderboard *service.LeaderboardService
 	store       *stateStore
 }
@@ -28,6 +29,7 @@ func NewHandler(
 	matches repository.MatchRepository,
 	predictions repository.PredictionRepository,
 	groups repository.GroupRepository,
+	tournament repository.TournamentRepository,
 	leaderboard *service.LeaderboardService,
 ) *Handler {
 	return &Handler{
@@ -35,6 +37,7 @@ func NewHandler(
 		matches:     matches,
 		predictions: predictions,
 		groups:      groups,
+		tournament:  tournament,
 		leaderboard: leaderboard,
 		store:       newStateStore(),
 	}
@@ -45,6 +48,8 @@ func (h *Handler) Register(b *tele.Bot) {
 	b.Handle("/matches", h.Matches)
 	b.Handle("/leaderboard", h.Leaderboard)
 	b.Handle("/bets", h.Bets)
+	b.Handle("/groups", h.Groups)
+	b.Handle("/predict", h.Predict)
 
 	b.Handle(tele.OnText, h.OnText)
 	b.Handle(tele.OnCallback, h.OnCallback)
@@ -52,8 +57,10 @@ func (h *Handler) Register(b *tele.Bot) {
 
 	_ = b.SetCommands([]tele.Command{
 		{Text: "matches", Description: "Матчи сегодня"},
-		{Text: "bets", Description: "Ставки на сегодня"},
-		{Text: "leaderboard", Description: "Таблица группы"},
+		{Text: "bets", Description: "Ставки дня"},
+		{Text: "leaderboard", Description: "Таблица тотализатора"},
+		{Text: "groups", Description: "Таблица групп ЧМ26"},
+		{Text: "predict", Description: "Предсказания на ЧМ26"},
 	})
 }
 

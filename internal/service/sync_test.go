@@ -44,6 +44,9 @@ func (m *mockMatchRepo) UpdateEvents(_ context.Context, _, _ int64, _, _, _ bool
 func (m *mockMatchRepo) GetGroupStandings(_ context.Context, _ string) ([]model.StandingEntry, error) {
 	return nil, nil
 }
+func (m *mockMatchRepo) GetFinishedInWindow(_ context.Context, _, _ time.Time) ([]model.Match, error) {
+	return nil, nil
+}
 func (m *mockMatchRepo) GetInPlay(_ context.Context) ([]model.Match, error) {
 	return m.inPlay, nil
 }

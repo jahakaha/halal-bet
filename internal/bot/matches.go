@@ -18,16 +18,22 @@ func mustLoadLocation(name string) *time.Location {
 	return loc
 }
 
-// matchWindow returns matches for today and tomorrow (48h from midnight).
+// matchWindow returns today's matches only.
 func matchWindow() (from, to time.Time) {
-	from, _ = todayWindow()
-	to = from.Add(48 * time.Hour)
-	return
+	return todayWindow()
 }
 
 // todayWindow returns today's 24h range in Almaty time.
+// SetTestDate overrides today's date for testing. Pass nil to reset.
+var testDate *time.Time
+
+func SetTestDate(d *time.Time) { testDate = d }
+
 func todayWindow() (from, to time.Time) {
 	now := time.Now().In(almatyLoc)
+	if testDate != nil {
+		now = testDate.In(almatyLoc)
+	}
 	from = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, almatyLoc).UTC()
 	to = from.Add(24 * time.Hour)
 	return
@@ -59,4 +65,3 @@ func (h *Handler) Matches(c tele.Context) error {
 
 	return c.Send("Матчи сегодня:", &tele.ReplyMarkup{InlineKeyboard: rows})
 }
-
