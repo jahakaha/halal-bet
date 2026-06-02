@@ -110,7 +110,7 @@ func (h *Handler) handleMatchSelect(c tele.Context, idStr string) error {
 }
 
 func buildMatchBetMsg(ctx context.Context, h *Handler, m *model.Match) string {
-	header := fmt.Sprintf("*%s — %s*\n\n", m.HomeTeam, m.AwayTeam)
+	header := fmt.Sprintf("*%s — %s*\n\n", withFlag(m.HomeTeam), withFlag(m.AwayTeam))
 	if m.Group == nil {
 		return header + "Выбери тип ставки:"
 	}
@@ -155,18 +155,18 @@ func (h *Handler) handleBetType(c tele.Context, betType string) error {
 	var prompt string
 	switch betType {
 	case model.BetTypeExact:
-		prompt = fmt.Sprintf("*%s — %s*\n\nВведи точный счёт\nПример: 2:1", st.homeTeam, st.awayTeam)
+		prompt = fmt.Sprintf("*%s — %s*\n\nВведи точный счёт\nПример: 2:1", withFlag(st.homeTeam), withFlag(st.awayTeam))
 	case model.BetTypeDiff:
-		prompt = fmt.Sprintf("*%s — %s*\n\nВведи разницу голов (число без знака)\n2 = кто-то выиграет на 2 гола\n0 = ничья", st.homeTeam, st.awayTeam)
+		prompt = fmt.Sprintf("*%s — %s*\n\nВведи разницу голов (число без знака)\n2 = кто-то выиграет на 2 гола\n0 = ничья", withFlag(st.homeTeam), withFlag(st.awayTeam))
 	case model.BetTypeOutcome:
 		kb := &tele.ReplyMarkup{
 			InlineKeyboard: [][]tele.InlineButton{
-				{{Text: st.homeTeam, Data: "oc|home"}},
+				{{Text: withFlag(st.homeTeam), Data: "oc|home"}},
 				{{Text: "Ничья", Data: "oc|draw"}},
-				{{Text: st.awayTeam, Data: "oc|away"}},
+				{{Text: withFlag(st.awayTeam), Data: "oc|away"}},
 			},
 		}
-		prompt = fmt.Sprintf("*%s — %s*\n\nКто победит?", st.homeTeam, st.awayTeam)
+		prompt = fmt.Sprintf("*%s — %s*\n\nКто победит?", withFlag(st.homeTeam), withFlag(st.awayTeam))
 		if err := c.Respond(); err != nil {
 			return err
 		}
@@ -184,12 +184,12 @@ func (h *Handler) handleBetType(c tele.Context, betType string) error {
 func (h *Handler) parseExactScore(c tele.Context, st *predictionState, text string) error {
 	parts := strings.Split(text, ":")
 	if len(parts) != 2 {
-		return h.editPrompt(c, st, fmt.Sprintf("*%s — %s*\n\nВведи точный счёт\nПример: 2:1\n\n⚠️ Неверный формат", st.homeTeam, st.awayTeam))
+		return h.editPrompt(c, st, fmt.Sprintf("*%s — %s*\n\nВведи точный счёт\nПример: 2:1\n\n⚠️ Неверный формат", withFlag(st.homeTeam), withFlag(st.awayTeam)))
 	}
 	home, err1 := strconv.Atoi(strings.TrimSpace(parts[0]))
 	away, err2 := strconv.Atoi(strings.TrimSpace(parts[1]))
 	if err1 != nil || err2 != nil || home < 0 || away < 0 {
-		return h.editPrompt(c, st, fmt.Sprintf("*%s — %s*\n\nВведи точный счёт\nПример: 2:1\n\n⚠️ Неверный счёт", st.homeTeam, st.awayTeam))
+		return h.editPrompt(c, st, fmt.Sprintf("*%s — %s*\n\nВведи точный счёт\nПример: 2:1\n\n⚠️ Неверный счёт", withFlag(st.homeTeam), withFlag(st.awayTeam)))
 	}
 	st.homeScore = home
 	st.awayScore = away
@@ -199,7 +199,7 @@ func (h *Handler) parseExactScore(c tele.Context, st *predictionState, text stri
 func (h *Handler) parseDiff(c tele.Context, st *predictionState, text string) error {
 	diff, err := strconv.Atoi(text)
 	if err != nil || diff < 0 {
-		return h.editPrompt(c, st, fmt.Sprintf("*%s — %s*\n\nВведи разницу голов\nПример: 2 (на два гола), 0 (ничья)\n\n⚠️ Введи целое число", st.homeTeam, st.awayTeam))
+		return h.editPrompt(c, st, fmt.Sprintf("*%s — %s*\n\nВведи разницу голов\nПример: 2 (на два гола), 0 (ничья)\n\n⚠️ Введи целое число", withFlag(st.homeTeam), withFlag(st.awayTeam)))
 	}
 	st.homeScore = diff
 	st.awayScore = 0
@@ -361,7 +361,7 @@ func buildPredictMsg(st *predictionState) string {
 	}
 	return fmt.Sprintf(
 		"*%s — %s*\nПрогноз: %s\n%s",
-		st.homeTeam, st.awayTeam, betSummary(st), ddLine,
+		withFlag(st.homeTeam), withFlag(st.awayTeam), betSummary(st), ddLine,
 	)
 }
 
@@ -375,9 +375,9 @@ func betSummary(st *predictionState) string {
 	case model.BetTypeOutcome:
 		switch model.OutcomeOf(st.homeScore, st.awayScore) {
 		case model.OutcomeHome:
-			return "Победа " + st.homeTeam
+			return "Победа " + withFlag(st.homeTeam)
 		case model.OutcomeAway:
-			return "Победа " + st.awayTeam
+			return "Победа " + withFlag(st.awayTeam)
 		default:
 			return "Ничья"
 		}

@@ -10,6 +10,7 @@ import (
 
 	"halal-bet/internal/model"
 	"halal-bet/internal/repository"
+	"halal-bet/internal/util"
 )
 
 var almatyLoc = mustLoadLocation("Asia/Almaty")
@@ -141,7 +142,7 @@ func formatMatchResults(date time.Time, matches []model.Match) string {
 	for _, m := range matches {
 		sb.WriteString(fmt.Sprintf(
 			"%s — %s  *%s : %s*\n",
-			m.HomeTeam, m.AwayTeam,
+			util.WithFlag(m.HomeTeam), util.WithFlag(m.AwayTeam),
 			scoreStr(m.HomeScore), scoreStr(m.AwayScore),
 		))
 	}
@@ -167,7 +168,7 @@ func formatTomorrowMatches(date time.Time, matches []model.Match, botUsername st
 	rows := make([][]tele.InlineButton, 0, len(matches))
 	for _, m := range matches {
 		localTime := m.MatchDate.In(almatyLoc).Format("15:04")
-		label := fmt.Sprintf("%s — %s  %s", m.HomeTeam, m.AwayTeam, localTime)
+		label := fmt.Sprintf("%s — %s  %s", util.WithFlag(m.HomeTeam), util.WithFlag(m.AwayTeam), localTime)
 		btn := tele.InlineButton{
 			Text: label,
 			URL:  fmt.Sprintf("https://t.me/%s?start=m_%d", botUsername, m.ID),
