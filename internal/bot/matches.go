@@ -40,6 +40,8 @@ func todayWindow() (from, to time.Time) {
 }
 
 func (h *Handler) Matches(c tele.Context) error {
+	_ = h.registerGroupMember(c)
+
 	ctx := context.Background()
 	from, to := matchWindow()
 	matches, err := h.matches.GetUpcoming(ctx, from, to)

@@ -15,6 +15,8 @@ func (h *Handler) Leaderboard(c tele.Context) error {
 		return c.Send("Таблица доступна только в групповом чате.")
 	}
 
+	_ = h.registerGroupMember(c)
+
 	ctx := context.Background()
 	group, err := h.groups.GetByChatID(ctx, c.Chat().ID)
 	if err != nil {
