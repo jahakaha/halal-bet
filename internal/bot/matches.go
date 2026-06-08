@@ -40,7 +40,9 @@ func todayWindow() (from, to time.Time) {
 }
 
 func (h *Handler) Matches(c tele.Context) error {
-	_ = h.registerGroupMember(c)
+	if c.Chat().Type != tele.ChatPrivate {
+		return h.sendPrivateOnlyHint(c)
+	}
 
 	ctx := context.Background()
 	from, to := matchWindow()

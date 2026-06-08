@@ -148,7 +148,6 @@ func (h *Handler) Description(c tele.Context) error {
 
 Делай ставки на матчи ЧМ 2026 и соревнуйся с друзьями.
 
-*Типы ставок:*
 *Основная ставка*
 🎯 Точный счёт — +5 очков
 ⚖️ Разница голов — +3 очка
@@ -166,12 +165,24 @@ func (h *Handler) Description(c tele.Context) error {
 
 ⏰ Ставки закрываются за 5 минут до начала матча.
 
-*Предсказания на турнир:*
+*Предсказания на турнир:* /predict
 🏆 Чемпион ЧМ 2026 — +20 очков
 ⚽️ Лучший бомбардир — +15 очков
-Дедлайн: 11 июня 23:30 (Алматы)
+Дедлайн: 11 июня 23:30 (Алматы)`, tele.ModeMarkdown)
+}
 
-Команды: /matches · /leaderboard · /groups`, tele.ModeMarkdown)
+func (h *Handler) sendPrivateOnlyHint(c tele.Context) error {
+	user := &tele.User{ID: c.Sender().ID}
+	_, err := c.Bot().Send(user, "Используй эту команду в нашем личном чате.")
+	if err == nil {
+		return nil
+	}
+	kb := &tele.ReplyMarkup{
+		InlineKeyboard: [][]tele.InlineButton{{
+			{Text: "Открыть личку", URL: "https://t.me/" + c.Bot().Me.Username},
+		}},
+	}
+	return c.Send("Напиши мне в личку!", kb)
 }
 
 // registerGroupMember авто-добавляет пользователя в группу если сообщение из группового чата.
