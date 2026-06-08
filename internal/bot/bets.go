@@ -11,6 +11,8 @@ import (
 )
 
 func (h *Handler) Bets(c tele.Context) error {
+	_ = h.registerGroupMember(c)
+
 	ctx := context.Background()
 	from, to := todayWindow()
 	matches, err := h.matches.GetUpcoming(ctx, from, to)
