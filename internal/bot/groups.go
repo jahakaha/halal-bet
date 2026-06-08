@@ -18,6 +18,10 @@ var wc2026Groups = []string{
 
 // Groups shows a grid of group buttons (A–L).
 func (h *Handler) Groups(c tele.Context) error {
+	if c.Chat().Type != tele.ChatPrivate {
+		return h.sendPrivateOnlyHint(c)
+	}
+
 	rows := make([][]tele.InlineButton, 0, 3)
 	for i := 0; i < len(wc2026Groups); i += 4 {
 		var row []tele.InlineButton
