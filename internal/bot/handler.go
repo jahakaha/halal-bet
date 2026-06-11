@@ -106,7 +106,7 @@ func (h *Handler) OnAddedToGroup(c tele.Context) error {
 	return h.groups.Upsert(context.Background(), group)
 }
 
-// openMatchBet устанавливает состояние и показывает выбор типа ставки.
+// openMatchBet устанавливает состояние и показывает ставку или выбор типа.
 func (h *Handler) openMatchBet(c tele.Context, idStr string) error {
 	matchID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
@@ -118,19 +118,22 @@ func (h *Handler) openMatchBet(c tele.Context, idStr string) error {
 	if err != nil {
 		return c.Send("Матч не найден.")
 	}
-	if time.Until(m.MatchDate) < 5*time.Minute {
+
+	canEdit := time.Until(m.MatchDate) > 5*time.Minute
+
+	userID, dbErr := h.users.GetIDByTelegramID(ctx, c.Sender().ID)
+	if dbErr == nil {
+		if existing, predErr := h.predictions.GetByUserAndMatch(ctx, userID, matchID); predErr == nil {
+			return c.Send(formatExistingBet(m, existing, canEdit), buildExistingBetKeyboard(m.ID, canEdit), tele.ModeMarkdown)
+		}
+	}
+
+	if !canEdit {
 		return c.Send("Ставки на этот матч уже закрыты.")
 	}
 
-	msg := buildMatchBetMsg(context.Background(), h, m)
-	kb := &tele.ReplyMarkup{
-		InlineKeyboard: [][]tele.InlineButton{
-			{{Text: "Точный счёт +5", Data: "bt|exact"}},
-			{{Text: "Разница голов +3", Data: "bt|diff"}},
-			{{Text: "Исход +1", Data: "bt|outcome"}},
-		},
-	}
-	sent, err := c.Bot().Send(c.Recipient(), msg, kb, tele.ModeMarkdown)
+	msg := buildMatchBetMsg(ctx, h, m)
+	sent, err := c.Bot().Send(c.Recipient(), msg, betTypeKeyboard(), tele.ModeMarkdown)
 	if err != nil {
 		return err
 	}
