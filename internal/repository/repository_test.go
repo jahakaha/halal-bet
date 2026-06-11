@@ -267,7 +267,7 @@ func TestPredictionRepository_CountDoubleDowns(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	count, err := repo.CountDoubleDowns(ctx, userID)
+	count, err := repo.CountDoubleDowns(ctx, userID, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
