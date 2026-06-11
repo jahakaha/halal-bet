@@ -50,6 +50,9 @@ func (m *mockMatchRepo) GetFinishedInWindow(_ context.Context, _, _ time.Time) (
 func (m *mockMatchRepo) GetInPlay(_ context.Context) ([]model.Match, error) {
 	return m.inPlay, nil
 }
+func (m *mockMatchRepo) UpdateStatus(_ context.Context, _ int64, _ model.MatchStatus, _, _ *int) error {
+	return nil
+}
 
 type mockPredictionRepo struct {
 	byMatch  map[int64][]model.Prediction

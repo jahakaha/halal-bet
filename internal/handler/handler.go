@@ -4,14 +4,13 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 )
 
 type SyncService interface {
 	SyncWC2026(ctx context.Context) (int, error)
-	SyncMatchEvents(ctx context.Context, date time.Time) (int, error)
+	SyncMatchEvents(ctx context.Context) (int, error)
 }
 
 type Handler struct {
@@ -42,19 +41,7 @@ func (h *Handler) syncWC2026(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) syncEvents(w http.ResponseWriter, r *http.Request) {
-	dateStr := r.URL.Query().Get("date")
-	var date time.Time
-	var err error
-	if dateStr == "" {
-		date = time.Now().UTC()
-	} else {
-		date, err = time.Parse("2006-01-02", dateStr)
-		if err != nil {
-			http.Error(w, "invalid date, use YYYY-MM-DD", http.StatusBadRequest)
-			return
-		}
-	}
-	n, err := h.sync.SyncMatchEvents(r.Context(), date)
+	n, err := h.sync.SyncMatchEvents(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

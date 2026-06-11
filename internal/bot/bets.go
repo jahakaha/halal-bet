@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	tele "gopkg.in/telebot.v3"
 
@@ -28,9 +29,10 @@ func (h *Handler) Bets(c tele.Context) error {
 		return err
 	}
 
+	now := time.Now().UTC()
 	var started []model.Match
 	for _, m := range matches {
-		if m.Status == model.MatchStatusInPlay || m.Status == model.MatchStatusPaused || m.Status == model.MatchStatusFinished {
+		if m.Status == model.MatchStatusInPlay || m.Status == model.MatchStatusPaused || m.Status == model.MatchStatusFinished || m.MatchDate.Before(now) {
 			started = append(started, m)
 		}
 	}

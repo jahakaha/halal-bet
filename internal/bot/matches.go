@@ -71,26 +71,28 @@ func (h *Handler) Matches(c tele.Context) error {
 		return err
 	}
 
-	var upcoming []model.Match
-	for _, m := range matches {
-		if m.Status == model.MatchStatusTimed {
-			upcoming = append(upcoming, m)
-		}
-	}
-
-	if len(upcoming) == 0 {
+	if len(matches) == 0 {
 		return c.Send("Матчей нет.")
 	}
 
 	seen := make(map[int64]bool)
-	rows := make([][]tele.InlineButton, 0, len(upcoming))
-	for _, m := range upcoming {
+	rows := make([][]tele.InlineButton, 0, len(matches))
+	for _, m := range matches {
 		if seen[m.ID] {
 			continue
 		}
 		seen[m.ID] = true
 		localTime := m.MatchDate.In(almatyLoc).Format("15:04")
-		label := fmt.Sprintf("%s — %s  %s", m.HomeTeam, m.AwayTeam, localTime)
+		prefix := ""
+		switch m.Status {
+		case model.MatchStatusInPlay:
+			prefix = "🟢 "
+		case model.MatchStatusPaused:
+			prefix = "⏸ "
+		case model.MatchStatusFinished:
+			prefix = "✅ "
+		}
+		label := fmt.Sprintf("%s%s — %s  %s", prefix, m.HomeTeam, m.AwayTeam, localTime)
 		btn := tele.InlineButton{
 			Text: label,
 			Data: fmt.Sprintf("m|%d", m.ID),
@@ -112,12 +114,21 @@ func (h *Handler) handleBackToMatches(c tele.Context) error {
 	seen := make(map[int64]bool)
 	rows := make([][]tele.InlineButton, 0, len(matches))
 	for _, m := range matches {
-		if m.Status != model.MatchStatusTimed || seen[m.ID] {
+		if seen[m.ID] {
 			continue
 		}
 		seen[m.ID] = true
 		localTime := m.MatchDate.In(almatyLoc).Format("15:04")
-		label := fmt.Sprintf("%s — %s  %s", m.HomeTeam, m.AwayTeam, localTime)
+		prefix := ""
+		switch m.Status {
+		case model.MatchStatusInPlay:
+			prefix = "🟢 "
+		case model.MatchStatusPaused:
+			prefix = "⏸ "
+		case model.MatchStatusFinished:
+			prefix = "✅ "
+		}
+		label := fmt.Sprintf("%s%s — %s  %s", prefix, m.HomeTeam, m.AwayTeam, localTime)
 		rows = append(rows, []tele.InlineButton{{
 			Text: label,
 			Data: fmt.Sprintf("m|%d", m.ID),

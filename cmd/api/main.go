@@ -113,19 +113,7 @@ func main() {
 		fmt.Fprintf(w, "synced %d matches\n", n)
 	})
 	r.Post("/sync/events", func(w http.ResponseWriter, req *http.Request) {
-		dateStr := req.URL.Query().Get("date")
-		var date time.Time
-		var err error
-		if dateStr == "" {
-			date = time.Now().UTC()
-		} else {
-			date, err = time.Parse("2006-01-02", dateStr)
-			if err != nil {
-				http.Error(w, "invalid date, use YYYY-MM-DD", http.StatusBadRequest)
-				return
-			}
-		}
-		n, err := syncSvc.SyncMatchEvents(req.Context(), date)
+		n, err := syncSvc.SyncMatchEvents(req.Context())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 )
 
 func testServer(body string, status int) (*httptest.Server, *Client) {
@@ -44,11 +43,11 @@ const incidentsJSON = `{
   ]
 }`
 
-func TestGetEventsByDate(t *testing.T) {
+func TestGetWC2026Events(t *testing.T) {
 	srv, c := testServer(eventsJSON, http.StatusOK)
 	defer srv.Close()
 
-	events, err := c.GetEventsByDate(context.Background(), time.Date(2026, 5, 30, 0, 0, 0, 0, time.UTC))
+	events, err := c.GetWC2026Events(context.Background(), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,11 +123,11 @@ func TestParseEvents_YellowRed(t *testing.T) {
 	}
 }
 
-func TestGetEventsByDate_HTTPError(t *testing.T) {
+func TestGetWC2026Events_HTTPError(t *testing.T) {
 	srv, c := testServer(`{}`, http.StatusTooManyRequests)
 	defer srv.Close()
 
-	_, err := c.GetEventsByDate(context.Background(), time.Date(2026, 5, 30, 0, 0, 0, 0, time.UTC))
+	_, err := c.GetWC2026Events(context.Background(), 0)
 	if err == nil {
 		t.Fatal("expected error for non-200 status")
 	}
