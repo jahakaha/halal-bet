@@ -12,15 +12,17 @@ import (
 )
 
 func (h *Handler) Bets(c tele.Context) error {
+	if c.Chat().Type == tele.ChatPrivate {
+		return c.Send("Ставки доступны только в групповом чате.")
+	}
+
 	_ = h.registerGroupMember(c)
 
 	ctx := context.Background()
 
-	var groupID int64
-	if c.Chat().Type != tele.ChatPrivate {
-		if g, err := h.groups.GetByChatID(ctx, c.Chat().ID); err == nil {
-			groupID = g.ID
-		}
+	group, err := h.groups.GetByChatID(ctx, c.Chat().ID)
+	if err != nil {
+		return c.Send("Группа не зарегистрирована. Напишите /start сначала.")
 	}
 
 	from, to := todayWindow()
@@ -43,11 +45,11 @@ func (h *Handler) Bets(c tele.Context) error {
 
 	var sb strings.Builder
 	for _, m := range started {
-		sb.WriteString(formatMatchBets(ctx, h, m, groupID))
+		sb.WriteString(formatMatchBets(ctx, h, m, group.ID))
 		sb.WriteString("\n")
 	}
 
-	return c.Send(sb.String(), tele.ModeMarkdown)
+	return c.Send(sb.String(), tele.ModeHTML)
 }
 
 func formatMatchBets(ctx context.Context, h *Handler, m model.Match, groupID int64) string {
@@ -59,11 +61,11 @@ func formatMatchBets(ctx context.Context, h *Handler, m model.Match, groupID int
 		if m.HomeScore != nil && m.AwayScore != nil {
 			score = fmt.Sprintf(" %d:%d", *m.HomeScore, *m.AwayScore)
 		}
-		sb.WriteString(fmt.Sprintf("✅ *%s — %s*%s\n", m.HomeTeam, m.AwayTeam, score))
+		sb.WriteString(fmt.Sprintf("✅ <b>%s — %s</b>%s\n", m.HomeTeam, m.AwayTeam, score))
 	case model.MatchStatusInPlay:
-		sb.WriteString(fmt.Sprintf("🟢 *%s — %s* (идёт)\n", m.HomeTeam, m.AwayTeam))
+		sb.WriteString(fmt.Sprintf("🟢 <b>%s — %s</b> (идёт)\n", m.HomeTeam, m.AwayTeam))
 	case model.MatchStatusPaused:
-		sb.WriteString(fmt.Sprintf("⏸ *%s — %s* (перерыв)\n", m.HomeTeam, m.AwayTeam))
+		sb.WriteString(fmt.Sprintf("⏸ <b>%s — %s</b> (перерыв)\n", m.HomeTeam, m.AwayTeam))
 	}
 
 	var preds []model.PredictionWithUser
@@ -74,7 +76,7 @@ func formatMatchBets(ctx context.Context, h *Handler, m model.Match, groupID int
 		preds, err = h.predictions.GetByMatchWithUsers(ctx, m.ID)
 	}
 	if err != nil || len(preds) == 0 {
-		sb.WriteString("  _нет ставок_\n")
+		sb.WriteString("  <i>нет ставок</i>\n")
 		return sb.String()
 	}
 
@@ -91,7 +93,7 @@ func formatMatchBets(ctx context.Context, h *Handler, m model.Match, groupID int
 			line += " " + extras
 		}
 		if p.Points != nil {
-			line += fmt.Sprintf(" → *%+d*", *p.Points)
+			line += fmt.Sprintf(" → <b>%+d</b>", *p.Points)
 		}
 		sb.WriteString(line + "\n")
 	}
