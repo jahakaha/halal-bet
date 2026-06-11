@@ -168,7 +168,9 @@ func (h *Handler) Description(c tele.Context) error {
 *Предсказания на турнир:* /predict
 🏆 Чемпион ЧМ 2026 — +20 очков
 ⚽️ Лучший бомбардир — +15 очков
-Дедлайн: 11 июня 23:30 (Алматы)`, tele.ModeMarkdown)
+Дедлайн: 11 июня 23:30 (Алматы)
+
+/matches · /leaderboard · /bets · /groups`, tele.ModeMarkdown)
 }
 
 func (h *Handler) sendPrivateOnlyHint(c tele.Context) error {
