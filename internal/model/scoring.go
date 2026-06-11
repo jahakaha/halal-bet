@@ -15,7 +15,7 @@ func CalcPoints(p *Prediction, m *Match) *int {
 		if pts > 0 {
 			pts *= 2
 		} else {
-			pts = -1
+			pts = -2
 		}
 	}
 

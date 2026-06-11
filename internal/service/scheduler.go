@@ -7,17 +7,15 @@ import (
 )
 
 // StartScheduler запускает ежедневные задания и поллер лайв матчей.
-// 13:00 Алматы — синк → финальная таблица
-// 20:00 Алматы — синк → расписание матчей
+// 12:00 Алматы — синк → результаты вчера + матчи завтра
 func StartScheduler(notif *NotificationService, sync *SyncService) {
-	go runDaily(13, 0, almatyLoc, "results", func() {
+	go runDaily(12, 0, almatyLoc, "results", func() {
 		ctx := context.Background()
 		syncAll(ctx, sync)
 		notif.SendDailyResults(ctx, time.Now())
 	})
-	go runDaily(20, 0, almatyLoc, "matches", func() {
+	go runDaily(12, 5, almatyLoc, "matches", func() {
 		ctx := context.Background()
-		syncAll(ctx, sync)
 		notif.SendDailyMatches(ctx, time.Now())
 	})
 	go runLiveSync(sync)
@@ -60,22 +58,22 @@ func runLiveSync(sync *SyncService) {
 	}
 }
 
-// quietWindowSleep returns how long to sleep if we're in the quiet window (13:00–20:00 Almaty).
+// quietWindowSleep returns how long to sleep if we're in the quiet window (12:10–22:00 Almaty).
 // Returns 0 if we're outside the quiet window and should poll normally.
 func quietWindowSleep() time.Duration {
 	now := time.Now().In(almatyLoc)
 	h, m := now.Hour(), now.Minute()
 	totalMin := h*60 + m
 
-	quietStart := 13 * 60 // 13:00
-	quietEnd := 20 * 60   // 20:00
+	quietStart := 12*60 + 10 // 12:10
+	quietEnd := 22 * 60       // 22:00
 
 	if totalMin < quietStart || totalMin >= quietEnd {
 		return 0
 	}
 
-	next20 := time.Date(now.Year(), now.Month(), now.Day(), 20, 0, 0, 0, almatyLoc)
-	return time.Until(next20)
+	next22 := time.Date(now.Year(), now.Month(), now.Day(), 22, 0, 0, 0, almatyLoc)
+	return time.Until(next22)
 }
 
 func runDaily(hour, min int, loc *time.Location, name string, fn func()) {
