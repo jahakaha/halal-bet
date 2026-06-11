@@ -14,6 +14,14 @@ func (h *Handler) Bets(c tele.Context) error {
 	_ = h.registerGroupMember(c)
 
 	ctx := context.Background()
+
+	var groupID int64
+	if c.Chat().Type != tele.ChatPrivate {
+		if g, err := h.groups.GetByChatID(ctx, c.Chat().ID); err == nil {
+			groupID = g.ID
+		}
+	}
+
 	from, to := todayWindow()
 	matches, err := h.matches.GetUpcoming(ctx, from, to)
 	if err != nil {
@@ -33,14 +41,14 @@ func (h *Handler) Bets(c tele.Context) error {
 
 	var sb strings.Builder
 	for _, m := range started {
-		sb.WriteString(formatMatchBets(ctx, h, m))
+		sb.WriteString(formatMatchBets(ctx, h, m, groupID))
 		sb.WriteString("\n")
 	}
 
 	return c.Send(sb.String(), tele.ModeMarkdown)
 }
 
-func formatMatchBets(ctx context.Context, h *Handler, m model.Match) string {
+func formatMatchBets(ctx context.Context, h *Handler, m model.Match, groupID int64) string {
 	var sb strings.Builder
 
 	switch m.Status {
@@ -56,7 +64,13 @@ func formatMatchBets(ctx context.Context, h *Handler, m model.Match) string {
 		sb.WriteString(fmt.Sprintf("⏸ *%s — %s* (перерыв)\n", m.HomeTeam, m.AwayTeam))
 	}
 
-	preds, err := h.predictions.GetByMatchWithUsers(ctx, m.ID)
+	var preds []model.PredictionWithUser
+	var err error
+	if groupID != 0 {
+		preds, err = h.predictions.GetByMatchWithUsersInGroup(ctx, m.ID, groupID)
+	} else {
+		preds, err = h.predictions.GetByMatchWithUsers(ctx, m.ID)
+	}
 	if err != nil || len(preds) == 0 {
 		sb.WriteString("  _нет ставок_\n")
 		return sb.String()
