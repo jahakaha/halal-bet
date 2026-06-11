@@ -15,6 +15,7 @@ type PredictionRepository interface {
 	GetByUserAndMatch(ctx context.Context, userID, matchID int64) (*model.Prediction, error)
 	GetByMatch(ctx context.Context, matchID int64) ([]model.Prediction, error)
 	GetByMatchWithUsers(ctx context.Context, matchID int64) ([]model.PredictionWithUser, error)
+	GetByMatchWithUsersInGroup(ctx context.Context, matchID, groupID int64) ([]model.PredictionWithUser, error)
 	CountDoubleDowns(ctx context.Context, userID, excludeMatchID int64) (int, error)
 	UpdatePoints(ctx context.Context, matchID int64, points map[int64]int) error
 }
@@ -108,6 +109,42 @@ func (r *predictionRepository) GetByMatchWithUsers(ctx context.Context, matchID 
 			"p.created_at", "p.updated_at", "u.username").
 		From("predictions p").
 		Join("users u ON u.id = p.user_id").
+		Where("p.match_id = ?", matchID).
+		OrderBy("u.username ASC").
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := r.db.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []model.PredictionWithUser
+	for rows.Next() {
+		var pw model.PredictionWithUser
+		if err := rows.Scan(
+			&pw.ID, &pw.UserID, &pw.MatchID, &pw.BetType, &pw.HomeScore, &pw.AwayScore,
+			&pw.DoubleDown, &pw.BetPenalty, &pw.BetRedCard, &pw.BetOwnGoal, &pw.Points,
+			&pw.CreatedAt, &pw.UpdatedAt, &pw.Username,
+		); err != nil {
+			return nil, err
+		}
+		result = append(result, pw)
+	}
+	return result, rows.Err()
+}
+
+func (r *predictionRepository) GetByMatchWithUsersInGroup(ctx context.Context, matchID, groupID int64) ([]model.PredictionWithUser, error) {
+	sql, args, err := psql.
+		Select("p.id", "p.user_id", "p.match_id", "p.bet_type", "p.home_score", "p.away_score",
+			"p.double_down", "p.bet_penalty", "p.bet_red_card", "p.bet_own_goal", "p.points",
+			"p.created_at", "p.updated_at", "u.username").
+		From("predictions p").
+		Join("users u ON u.id = p.user_id").
+		Join("group_members gm ON gm.user_id = p.user_id AND gm.group_id = ?", groupID).
 		Where("p.match_id = ?", matchID).
 		OrderBy("u.username ASC").
 		ToSql()

@@ -39,6 +39,7 @@ func runLiveSync(sync *SyncService) {
 		}
 
 		ctx := context.Background()
+		log.Printf("live-sync: syncing")
 		if _, err := sync.SyncWC2026(ctx); err != nil {
 			log.Printf("live-sync: wc2026: %v", err)
 		}
@@ -51,9 +52,10 @@ func runLiveSync(sync *SyncService) {
 		}
 
 		if len(inPlay) > 0 {
-			log.Printf("live-sync: %d match(es) in play", len(inPlay))
+			log.Printf("live-sync: %d match(es) in play, next sync in 2m", len(inPlay))
 			time.Sleep(2 * time.Minute)
 		} else {
+			log.Printf("live-sync: no matches in play, next sync in 5m")
 			time.Sleep(5 * time.Minute)
 		}
 	}
