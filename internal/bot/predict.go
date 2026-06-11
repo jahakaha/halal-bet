@@ -88,7 +88,8 @@ func (h *Handler) handleMatchSelect(c tele.Context, idStr string) error {
 	userID, dbErr := h.users.GetIDByTelegramID(ctx, c.Sender().ID)
 	if dbErr == nil {
 		if existing, predErr := h.predictions.GetByUserAndMatch(ctx, userID, matchID); predErr == nil {
-			_, sendErr := c.Bot().Send(user, formatExistingBet(selected, existing, canEdit), buildExistingBetKeyboard(selected.ID, canEdit), tele.ModeMarkdown)
+			block := groupStandingsBlock(ctx, h, selected)
+			_, sendErr := c.Bot().Send(user, formatExistingBet(block, selected, existing, canEdit), buildExistingBetKeyboard(selected.ID, canEdit), tele.ModeMarkdown)
 			if sendErr != nil {
 				return c.Respond(&tele.CallbackResponse{Text: "Напиши мне в личку — @" + c.Bot().Me.Username})
 			}
@@ -156,9 +157,6 @@ func (h *Handler) handleEditBet(c tele.Context, idStr string) error {
 		}
 	}
 
-	if err := c.Respond(); err != nil {
-		return err
-	}
 	st.betType = model.BetTypeExact
 	if err := c.Respond(); err != nil {
 		return err
@@ -172,9 +170,24 @@ func (h *Handler) handleEditBet(c tele.Context, idStr string) error {
 	return nil
 }
 
-func formatExistingBet(m *model.Match, p *model.Prediction, canEdit bool) string {
+func groupStandingsBlock(ctx context.Context, h *Handler, m *model.Match) string {
+	if m.Group == nil {
+		return ""
+	}
+	entries, err := h.matches.GetGroupStandings(ctx, *m.Group)
+	if err != nil || len(entries) == 0 {
+		return ""
+	}
+	return formatGroupStandings(*m.Group, entries)
+}
+
+func formatExistingBet(standingsBlock string, m *model.Match, p *model.Prediction, canEdit bool) string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("*%s — %s*\n\n", withFlag(m.HomeTeam), withFlag(m.AwayTeam)))
+	if standingsBlock != "" {
+		sb.WriteString(standingsBlock)
+		sb.WriteString("\n")
+	}
 	sb.WriteString("Твоя ставка: " + predSummary(p, m.HomeTeam, m.AwayTeam))
 	if p.DoubleDown {
 		sb.WriteString(" 🔥")
@@ -204,16 +217,11 @@ func buildExistingBetKeyboard(matchID int64, canEdit bool) *tele.ReplyMarkup {
 func buildMatchBetMsg(ctx context.Context, h *Handler, m *model.Match) string {
 	header := fmt.Sprintf("*%s — %s*\n\n", withFlag(m.HomeTeam), withFlag(m.AwayTeam))
 	prompt := "Введи точный счёт\nПример: 2:1"
-	if m.Group == nil {
+	block := groupStandingsBlock(ctx, h, m)
+	if block == "" {
 		return header + prompt
 	}
-
-	standings, err := h.matches.GetGroupStandings(ctx, *m.Group)
-	if err != nil || len(standings) == 0 {
-		return header + prompt
-	}
-
-	return header + formatGroupStandings(*m.Group, standings) + "\n" + prompt
+	return header + block + "\n" + prompt
 }
 
 func formatGroupStandings(groupName string, entries []model.StandingEntry) string {

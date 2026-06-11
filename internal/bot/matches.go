@@ -69,14 +69,18 @@ func (h *Handler) Matches(c tele.Context) error {
 		return c.Send("Матчей завтра нет.")
 	}
 
-	botUsername := c.Bot().Me.Username
+	seen := make(map[int64]bool)
 	rows := make([][]tele.InlineButton, 0, len(upcoming))
 	for _, m := range upcoming {
+		if seen[m.ID] {
+			continue
+		}
+		seen[m.ID] = true
 		localTime := m.MatchDate.In(almatyLoc).Format("15:04")
 		label := fmt.Sprintf("%s — %s  %s", m.HomeTeam, m.AwayTeam, localTime)
 		btn := tele.InlineButton{
 			Text: label,
-			URL:  fmt.Sprintf("https://t.me/%s?start=m_%d", botUsername, m.ID),
+			Data: fmt.Sprintf("m|%d", m.ID),
 		}
 		rows = append(rows, []tele.InlineButton{btn})
 	}
