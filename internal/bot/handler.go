@@ -124,7 +124,8 @@ func (h *Handler) openMatchBet(c tele.Context, idStr string) error {
 	userID, dbErr := h.users.GetIDByTelegramID(ctx, c.Sender().ID)
 	if dbErr == nil {
 		if existing, predErr := h.predictions.GetByUserAndMatch(ctx, userID, matchID); predErr == nil {
-			return c.Send(formatExistingBet(m, existing, canEdit), buildExistingBetKeyboard(m.ID, canEdit), tele.ModeMarkdown)
+			block := groupStandingsBlock(ctx, h, m)
+			return c.Send(formatExistingBet(block, m, existing, canEdit), buildExistingBetKeyboard(m.ID, canEdit), tele.ModeMarkdown)
 		}
 	}
 
