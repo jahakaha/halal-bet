@@ -7,6 +7,7 @@ type MatchStatus string
 const (
 	MatchStatusTimed     MatchStatus = "TIMED"
 	MatchStatusInPlay    MatchStatus = "IN_PLAY"
+	MatchStatusPaused    MatchStatus = "PAUSED"
 	MatchStatusFinished  MatchStatus = "FINISHED"
 	MatchStatusPostponed MatchStatus = "POSTPONED"
 )

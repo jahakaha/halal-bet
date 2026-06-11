@@ -22,7 +22,7 @@ func (h *Handler) Bets(c tele.Context) error {
 
 	var started []model.Match
 	for _, m := range matches {
-		if m.Status == model.MatchStatusInPlay || m.Status == model.MatchStatusFinished {
+		if m.Status == model.MatchStatusInPlay || m.Status == model.MatchStatusPaused || m.Status == model.MatchStatusFinished {
 			started = append(started, m)
 		}
 	}
@@ -52,6 +52,8 @@ func formatMatchBets(ctx context.Context, h *Handler, m model.Match) string {
 		sb.WriteString(fmt.Sprintf("✅ *%s — %s*%s\n", m.HomeTeam, m.AwayTeam, score))
 	case model.MatchStatusInPlay:
 		sb.WriteString(fmt.Sprintf("🟢 *%s — %s* (идёт)\n", m.HomeTeam, m.AwayTeam))
+	case model.MatchStatusPaused:
+		sb.WriteString(fmt.Sprintf("⏸ *%s — %s* (перерыв)\n", m.HomeTeam, m.AwayTeam))
 	}
 
 	preds, err := h.predictions.GetByMatchWithUsers(ctx, m.ID)

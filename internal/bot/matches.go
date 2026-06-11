@@ -6,6 +6,8 @@ import (
 	"time"
 
 	tele "gopkg.in/telebot.v3"
+
+	"halal-bet/internal/model"
 )
 
 var almatyLoc = mustLoadLocation("Asia/Almaty")
@@ -18,9 +20,14 @@ func mustLoadLocation(name string) *time.Location {
 	return loc
 }
 
-// matchWindow returns today's matches only.
-func matchWindow() (from, to time.Time) {
-	return todayWindow()
+func tomorrowWindow() (from, to time.Time) {
+	now := time.Now().In(almatyLoc)
+	if testDate != nil {
+		now = testDate.In(almatyLoc)
+	}
+	from = time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, almatyLoc).UTC()
+	to = from.Add(24 * time.Hour)
+	return
 }
 
 // todayWindow returns today's 24h range in Almaty time.
@@ -45,19 +52,26 @@ func (h *Handler) Matches(c tele.Context) error {
 	}
 
 	ctx := context.Background()
-	from, to := matchWindow()
+	from, to := tomorrowWindow()
 	matches, err := h.matches.GetUpcoming(ctx, from, to)
 	if err != nil {
 		return err
 	}
 
-	if len(matches) == 0 {
-		return c.Send("Сегодня матчей нет.")
+	var upcoming []model.Match
+	for _, m := range matches {
+		if m.Status == model.MatchStatusTimed {
+			upcoming = append(upcoming, m)
+		}
+	}
+
+	if len(upcoming) == 0 {
+		return c.Send("Матчей завтра нет.")
 	}
 
 	botUsername := c.Bot().Me.Username
-	rows := make([][]tele.InlineButton, 0, len(matches))
-	for _, m := range matches {
+	rows := make([][]tele.InlineButton, 0, len(upcoming))
+	for _, m := range upcoming {
 		localTime := m.MatchDate.In(almatyLoc).Format("15:04")
 		label := fmt.Sprintf("%s — %s  %s", m.HomeTeam, m.AwayTeam, localTime)
 		btn := tele.InlineButton{
