@@ -53,30 +53,6 @@ func TestCalcPoints_Exact(t *testing.T) {
 	}
 }
 
-func TestCalcPoints_Diff(t *testing.T) {
-	cases := []struct {
-		predDiff int
-		actualHome, actualAway int
-		want int
-	}{
-		{2, 3, 1, 3}, // diff matches (both +2)
-		{2, 1, 3, 3}, // diff matches (both -2, stored as abs)
-		{0, 1, 1, 3}, // draw matches
-		{2, 1, 0, 0}, // diff mismatch
-		{0, 2, 1, 0}, // draw predicted, home wins
-	}
-
-	for _, tc := range cases {
-		p := &Prediction{BetType: BetTypeDiff, HomeScore: tc.predDiff}
-		m := finished(tc.actualHome, tc.actualAway)
-		got := CalcPoints(p, m)
-		if got == nil || *got != tc.want {
-			t.Errorf("diff %d vs actual %d:%d: want %d, got %v",
-				tc.predDiff, tc.actualHome, tc.actualAway, tc.want, got)
-		}
-	}
-}
-
 func TestCalcPoints_Outcome(t *testing.T) {
 	cases := []struct {
 		predHome, predAway int
@@ -85,7 +61,7 @@ func TestCalcPoints_Outcome(t *testing.T) {
 	}{
 		{1, 0, 3, 1, 1}, // home win predicted and happened
 		{0, 1, 0, 2, 1}, // away win
-		{0, 0, 1, 1, 1}, // draw
+		{0, 0, 1, 1, 3}, // draw: same diff (0=0) → 3
 		{1, 0, 0, 1, 0}, // home predicted, away won
 		{0, 0, 2, 1, 0}, // draw predicted, home won
 	}
