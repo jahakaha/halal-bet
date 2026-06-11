@@ -18,6 +18,7 @@ type PredictionRepository interface {
 	GetByMatchWithUsersInGroup(ctx context.Context, matchID, groupID int64) ([]model.PredictionWithUser, error)
 	CountDoubleDowns(ctx context.Context, userID, excludeMatchID int64) (int, error)
 	UpdatePoints(ctx context.Context, matchID int64, points map[int64]int) error
+	ResetPoints(ctx context.Context, matchID int64) error
 }
 
 type predictionRepository struct {
@@ -185,6 +186,20 @@ func (r *predictionRepository) CountDoubleDowns(ctx context.Context, userID, exc
 	var count int
 	err = r.db.QueryRow(ctx, sql, args...).Scan(&count)
 	return count, err
+}
+
+func (r *predictionRepository) ResetPoints(ctx context.Context, matchID int64) error {
+	sql, args, err := psql.
+		Update("predictions").
+		Set("points", nil).
+		Set("updated_at", sq.Expr("NOW()")).
+		Where("match_id = ?", matchID).
+		ToSql()
+	if err != nil {
+		return err
+	}
+	_, err = r.db.Exec(ctx, sql, args...)
+	return err
 }
 
 // UpdatePoints bulk-updates points for all predictions of a finished match.

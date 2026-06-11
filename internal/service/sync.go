@@ -152,6 +152,9 @@ func (s *SyncService) SyncMatchEvents(ctx context.Context) (int, error) {
 		if err := s.matches.UpdateEvents(ctx, m.ID, event.ID, hadRed, hadPen, hadOwn); err != nil {
 			return updated, fmt.Errorf("update events for match %d: %w", m.ID, err)
 		}
+		if err := s.predictions.ResetPoints(ctx, m.ID); err != nil {
+			return updated, fmt.Errorf("reset points for match %d: %w", m.ID, err)
+		}
 		updated++
 	}
 

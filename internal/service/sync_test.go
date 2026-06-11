@@ -93,6 +93,7 @@ func (r *mockPredictionRepo) UpdatePoints(_ context.Context, _ int64, points map
 	}
 	return nil
 }
+func (r *mockPredictionRepo) ResetPoints(_ context.Context, _ int64) error { return nil }
 
 func intPtr(i int) *int { return &i }
 

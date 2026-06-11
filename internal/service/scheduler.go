@@ -52,6 +52,15 @@ func runLiveSync(sync *SyncService) {
 			log.Printf("live-sync: wc2026: %v", err)
 		}
 
+		if pending, _ := sync.matches.GetFinishedForEventSync(ctx); len(pending) > 0 {
+			log.Printf("live-sync: %d match(es) need events, syncing sofascore", len(pending))
+			if n, err := sync.SyncMatchEvents(ctx); err != nil {
+				log.Printf("live-sync: events: %v", err)
+			} else {
+				log.Printf("live-sync: events synced for %d matches", n)
+			}
+		}
+
 		inPlay, err := sync.matches.GetInPlay(ctx)
 		if err != nil {
 			log.Printf("live-sync: check in-play: %v", err)
