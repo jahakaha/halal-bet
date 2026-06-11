@@ -87,3 +87,39 @@ func (h *Handler) Matches(c tele.Context) error {
 
 	return c.Send("Матчи сегодня:", &tele.ReplyMarkup{InlineKeyboard: rows})
 }
+
+func (h *Handler) handleBackToMatches(c tele.Context) error {
+	ctx := context.Background()
+	from, to := tomorrowWindow()
+	matches, err := h.matches.GetUpcoming(ctx, from, to)
+	if err != nil {
+		return c.Respond()
+	}
+
+	seen := make(map[int64]bool)
+	rows := make([][]tele.InlineButton, 0, len(matches))
+	for _, m := range matches {
+		if m.Status != model.MatchStatusTimed || seen[m.ID] {
+			continue
+		}
+		seen[m.ID] = true
+		localTime := m.MatchDate.In(almatyLoc).Format("15:04")
+		label := fmt.Sprintf("%s — %s  %s", m.HomeTeam, m.AwayTeam, localTime)
+		rows = append(rows, []tele.InlineButton{{
+			Text: label,
+			Data: fmt.Sprintf("m|%d", m.ID),
+		}})
+	}
+
+	if err := c.Respond(); err != nil {
+		return err
+	}
+
+	if len(rows) == 0 {
+		_, err := c.Bot().Edit(c.Message(), "Матчей завтра нет.")
+		return err
+	}
+
+	_, err = c.Bot().Edit(c.Message(), "Матчи сегодня:", &tele.ReplyMarkup{InlineKeyboard: rows})
+	return err
+}
