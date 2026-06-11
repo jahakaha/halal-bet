@@ -46,8 +46,38 @@ func (h *Handler) handleGroupStandings(c tele.Context, groupName string) error {
 	if len(entries) == 0 {
 		return c.Respond(&tele.CallbackResponse{Text: "Данных пока нет"})
 	}
-	_ = c.Respond()
-	return c.Send(formatGroupTable(groupName, entries), tele.ModeMarkdown)
+
+	backKb := &tele.ReplyMarkup{
+		InlineKeyboard: [][]tele.InlineButton{
+			{{Text: "← Группы", Data: "back|grp"}},
+		},
+	}
+
+	if err := c.Respond(); err != nil {
+		return err
+	}
+	_, err = c.Bot().Edit(c.Message(), formatGroupTable(groupName, entries), backKb, tele.ModeMarkdown)
+	return err
+}
+
+func (h *Handler) handleBackToGroups(c tele.Context) error {
+	rows := make([][]tele.InlineButton, 0, 3)
+	for i := 0; i < len(wc2026Groups); i += 4 {
+		var row []tele.InlineButton
+		for j := i; j < i+4 && j < len(wc2026Groups); j++ {
+			g := wc2026Groups[j]
+			row = append(row, tele.InlineButton{
+				Text: "Группа " + g[len("GROUP_"):],
+				Data: "grp|" + g,
+			})
+		}
+		rows = append(rows, row)
+	}
+	if err := c.Respond(); err != nil {
+		return err
+	}
+	_, err := c.Bot().Edit(c.Message(), "Выбери группу:", &tele.ReplyMarkup{InlineKeyboard: rows})
+	return err
 }
 
 func formatGroupTable(groupName string, entries []model.StandingEntry) string {

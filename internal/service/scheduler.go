@@ -27,8 +27,8 @@ func syncAll(ctx context.Context, sync *SyncService) {
 	}
 }
 
-// runLiveSync polls for IN_PLAY matches only during the active window (20:00–13:00 Almaty).
-// During the quiet window (13:00–20:00) it sleeps until 20:00.
+// runLiveSync polls continuously outside the quiet window (12:10–21:00 Almaty).
+// Always syncs so that match statuses transition to IN_PLAY correctly.
 // When matches are in play it syncs every 2 minutes, otherwise every 5 minutes.
 func runLiveSync(sync *SyncService) {
 	for {
@@ -39,6 +39,10 @@ func runLiveSync(sync *SyncService) {
 		}
 
 		ctx := context.Background()
+		if _, err := sync.SyncWC2026(ctx); err != nil {
+			log.Printf("live-sync: wc2026: %v", err)
+		}
+
 		inPlay, err := sync.matches.GetInPlay(ctx)
 		if err != nil {
 			log.Printf("live-sync: check in-play: %v", err)
@@ -47,10 +51,7 @@ func runLiveSync(sync *SyncService) {
 		}
 
 		if len(inPlay) > 0 {
-			log.Printf("live-sync: %d match(es) in play, syncing", len(inPlay))
-			if _, err := sync.SyncWC2026(ctx); err != nil {
-				log.Printf("live-sync: wc2026: %v", err)
-			}
+			log.Printf("live-sync: %d match(es) in play", len(inPlay))
 			time.Sleep(2 * time.Minute)
 		} else {
 			time.Sleep(5 * time.Minute)
@@ -58,7 +59,7 @@ func runLiveSync(sync *SyncService) {
 	}
 }
 
-// quietWindowSleep returns how long to sleep if we're in the quiet window (12:10–22:00 Almaty).
+// quietWindowSleep returns how long to sleep if we're in the quiet window (12:10–21:00 Almaty).
 // Returns 0 if we're outside the quiet window and should poll normally.
 func quietWindowSleep() time.Duration {
 	now := time.Now().In(almatyLoc)
@@ -66,14 +67,14 @@ func quietWindowSleep() time.Duration {
 	totalMin := h*60 + m
 
 	quietStart := 12*60 + 10 // 12:10
-	quietEnd := 22 * 60       // 22:00
+	quietEnd := 21 * 60       // 21:00
 
 	if totalMin < quietStart || totalMin >= quietEnd {
 		return 0
 	}
 
-	next22 := time.Date(now.Year(), now.Month(), now.Day(), 22, 0, 0, 0, almatyLoc)
-	return time.Until(next22)
+	next21 := time.Date(now.Year(), now.Month(), now.Day(), 21, 0, 0, 0, almatyLoc)
+	return time.Until(next21)
 }
 
 func runDaily(hour, min int, loc *time.Location, name string, fn func()) {

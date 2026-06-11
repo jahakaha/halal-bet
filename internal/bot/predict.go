@@ -26,6 +26,8 @@ func (h *Handler) OnCallback(c tele.Context) error {
 		return h.handleEditBet(c, data[3:])
 	case data == "back|m":
 		return h.handleBackToMatches(c)
+	case data == "back|grp":
+		return h.handleBackToGroups(c)
 	case strings.HasPrefix(data, "bt|"):
 		return h.handleBetType(c, data[3:])
 	case strings.HasPrefix(data, "oc|"):
