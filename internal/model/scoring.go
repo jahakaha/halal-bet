@@ -25,33 +25,16 @@ func CalcPoints(p *Prediction, m *Match) *int {
 }
 
 func basePoints(p *Prediction, actualHome, actualAway int) int {
-	switch p.BetType {
-	case BetTypeOutcome:
-		if OutcomeOf(p.HomeScore, p.AwayScore) == OutcomeOf(actualHome, actualAway) {
-			return 1
-		}
-		return 0
-	case BetTypeDiff:
-		actualDiff := actualHome - actualAway
-		if actualDiff < 0 {
-			actualDiff = -actualDiff
-		}
-		if p.HomeScore == actualDiff {
-			return 3
-		}
-		return 0
-	default: // BetTypeExact
-		if p.HomeScore == actualHome && p.AwayScore == actualAway {
-			return 5
-		}
-		if p.HomeScore-p.AwayScore == actualHome-actualAway {
-			return 3
-		}
-		if OutcomeOf(p.HomeScore, p.AwayScore) == OutcomeOf(actualHome, actualAway) {
-			return 1
-		}
-		return 0
+	if p.HomeScore == actualHome && p.AwayScore == actualAway {
+		return 5
 	}
+	if p.HomeScore-p.AwayScore == actualHome-actualAway {
+		return 3
+	}
+	if OutcomeOf(p.HomeScore, p.AwayScore) == OutcomeOf(actualHome, actualAway) {
+		return 1
+	}
+	return 0
 }
 
 func riskyPoints(p *Prediction, m *Match) int {
