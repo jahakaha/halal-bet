@@ -30,6 +30,21 @@ func tomorrowWindow() (from, to time.Time) {
 	return
 }
 
+// matchesWindow returns today's matches before 12:00 Almaty, tomorrow's after 12:00.
+func matchesWindow() (from, to time.Time) {
+	now := time.Now().In(almatyLoc)
+	if testDate != nil {
+		now = testDate.In(almatyLoc)
+	}
+	offset := 1
+	if now.Hour() < 12 {
+		offset = 0
+	}
+	from = time.Date(now.Year(), now.Month(), now.Day()+offset, 0, 0, 0, 0, almatyLoc).UTC()
+	to = from.Add(24 * time.Hour)
+	return
+}
+
 // todayWindow returns today's 24h range in Almaty time.
 // SetTestDate overrides today's date for testing. Pass nil to reset.
 var testDate *time.Time
@@ -46,13 +61,21 @@ func todayWindow() (from, to time.Time) {
 	return
 }
 
+func matchesLabel() string {
+	now := time.Now().In(almatyLoc)
+	if now.Hour() < 12 {
+		return "Матчи сегодня:"
+	}
+	return "Матчи завтра:"
+}
+
 func (h *Handler) Matches(c tele.Context) error {
 	if c.Chat().Type != tele.ChatPrivate {
 		return h.sendPrivateOnlyHint(c)
 	}
 
 	ctx := context.Background()
-	from, to := tomorrowWindow()
+	from, to := matchesWindow()
 	matches, err := h.matches.GetUpcoming(ctx, from, to)
 	if err != nil {
 		return err
@@ -66,7 +89,7 @@ func (h *Handler) Matches(c tele.Context) error {
 	}
 
 	if len(upcoming) == 0 {
-		return c.Send("Матчей завтра нет.")
+		return c.Send("Матчей нет.")
 	}
 
 	seen := make(map[int64]bool)
@@ -85,12 +108,12 @@ func (h *Handler) Matches(c tele.Context) error {
 		rows = append(rows, []tele.InlineButton{btn})
 	}
 
-	return c.Send("Матчи сегодня:", &tele.ReplyMarkup{InlineKeyboard: rows})
+	return c.Send(matchesLabel(), &tele.ReplyMarkup{InlineKeyboard: rows})
 }
 
 func (h *Handler) handleBackToMatches(c tele.Context) error {
 	ctx := context.Background()
-	from, to := tomorrowWindow()
+	from, to := matchesWindow()
 	matches, err := h.matches.GetUpcoming(ctx, from, to)
 	if err != nil {
 		return c.Respond()
@@ -116,10 +139,10 @@ func (h *Handler) handleBackToMatches(c tele.Context) error {
 	}
 
 	if len(rows) == 0 {
-		_, err := c.Bot().Edit(c.Message(), "Матчей завтра нет.")
+		_, err := c.Bot().Edit(c.Message(), "Матчей нет.")
 		return err
 	}
 
-	_, err = c.Bot().Edit(c.Message(), "Матчи сегодня:", &tele.ReplyMarkup{InlineKeyboard: rows})
+	_, err = c.Bot().Edit(c.Message(), matchesLabel(), &tele.ReplyMarkup{InlineKeyboard: rows})
 	return err
 }
