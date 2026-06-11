@@ -200,15 +200,6 @@ func buildExistingBetKeyboard(matchID int64, canEdit bool) *tele.ReplyMarkup {
 	}
 }
 
-func betTypeKeyboard() *tele.ReplyMarkup {
-	return &tele.ReplyMarkup{
-		InlineKeyboard: [][]tele.InlineButton{
-			{{Text: "Точный счёт +5", Data: "bt|exact"}},
-			{{Text: "Разница голов +3", Data: "bt|diff"}},
-			{{Text: "Исход +1", Data: "bt|outcome"}},
-		},
-	}
-}
 
 func buildMatchBetMsg(ctx context.Context, h *Handler, m *model.Match) string {
 	header := fmt.Sprintf("*%s — %s*\n\n", withFlag(m.HomeTeam), withFlag(m.AwayTeam))

@@ -111,8 +111,8 @@ func TestCalcPoints_DoubleDown(t *testing.T) {
 		{BetTypeExact, 2, 1, 2, 1, 10}, // exact 5 × 2
 		{BetTypeExact, 2, 0, 3, 1, 6},  // diff 3 × 2
 		{BetTypeOutcome, 1, 0, 2, 0, 2}, // outcome 1 × 2
-		{BetTypeExact, 2, 1, 0, 1, -1}, // wrong → -1
-		{BetTypeOutcome, 1, 0, 0, 1, -1}, // wrong outcome → -1
+		{BetTypeExact, 2, 1, 0, 1, -2}, // wrong → -2
+		{BetTypeOutcome, 1, 0, 0, 1, -2}, // wrong outcome → -2
 	}
 
 	for _, tc := range cases {
