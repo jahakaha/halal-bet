@@ -156,9 +156,6 @@ func (h *Handler) handleEditBet(c tele.Context, idStr string) error {
 		}
 	}
 
-	if err := c.Respond(); err != nil {
-		return err
-	}
 	st.betType = model.BetTypeExact
 	if err := c.Respond(); err != nil {
 		return err
