@@ -5,10 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 )
 
-const baseURL = "https://sofascore.p.rapidapi.com/api/v1"
+const baseURL = "https://sofascore.p.rapidapi.com"
+
+// WC2026 tournament and season IDs on Sofascore.
+const (
+	WC2026TournamentID = 16
+	WC2026SeasonID     = 58210
+)
 
 type Client struct {
 	apiKey     string
@@ -23,14 +30,13 @@ func New(apiKey string) *Client {
 }
 
 type Event struct {
-	ID             int64      `json:"id"`
-	HomeTeam       Team       `json:"homeTeam"`
-	AwayTeam       Team       `json:"awayTeam"`
-	Tournament     Tournament `json:"tournament"`
-	StartTimestamp int64      `json:"startTimestamp"`
-	Status         EventStatus `json:"status"`
-	HomeScore      *EventScore `json:"homeScore"`
-	AwayScore      *EventScore `json:"awayScore"`
+	ID         int64       `json:"id"`
+	HomeTeam   Team        `json:"homeTeam"`
+	AwayTeam   Team        `json:"awayTeam"`
+	Tournament Tournament  `json:"tournament"`
+	Status     EventStatus `json:"status"`
+	HomeScore  *EventScore `json:"homeScore"`
+	AwayScore  *EventScore `json:"awayScore"`
 }
 
 type Team struct {
@@ -52,8 +58,8 @@ type EventStatus struct {
 }
 
 type EventScore struct {
-	Current  *int `json:"current"`
-	Display  *int `json:"display"`
+	Current *int `json:"current"`
+	Display *int `json:"display"`
 }
 
 type eventsResponse struct {
@@ -71,9 +77,10 @@ type incidentsResponse struct {
 	Incidents []Incident `json:"incidents"`
 }
 
-func (c *Client) GetEventsByDate(ctx context.Context, date time.Time) ([]Event, error) {
-	dateStr := date.UTC().Format("2006-01-02")
-	url := fmt.Sprintf("%s/sport/football/scheduled-events/%s", baseURL, dateStr)
+// GetWC2026Events returns WC2026 matches from Sofascore for the given page.
+func (c *Client) GetWC2026Events(ctx context.Context, pageIndex int) ([]Event, error) {
+	url := fmt.Sprintf("%s/tournaments/get-matches?tournamentId=%d&seasonId=%d&pageIndex=%d",
+		baseURL, WC2026TournamentID, WC2026SeasonID, pageIndex)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -88,7 +95,7 @@ func (c *Client) GetEventsByDate(ctx context.Context, date time.Time) ([]Event, 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("sofascore: status %d for date %s", resp.StatusCode, dateStr)
+		return nil, fmt.Errorf("sofascore: get-matches status %d", resp.StatusCode)
 	}
 
 	var result eventsResponse
@@ -99,7 +106,7 @@ func (c *Client) GetEventsByDate(ctx context.Context, date time.Time) ([]Event, 
 }
 
 func (c *Client) GetIncidents(ctx context.Context, eventID int64) ([]Incident, error) {
-	url := fmt.Sprintf("%s/event/%d/incidents", baseURL, eventID)
+	url := fmt.Sprintf("%s/matches/get-incidents?matchId=%d", baseURL, eventID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -114,7 +121,7 @@ func (c *Client) GetIncidents(ctx context.Context, eventID int64) ([]Incident, e
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("sofascore: status %d for event %d", resp.StatusCode, eventID)
+		return nil, fmt.Errorf("sofascore: get-incidents status %d for event %d", resp.StatusCode, eventID)
 	}
 
 	var result incidentsResponse
@@ -127,6 +134,12 @@ func (c *Client) GetIncidents(ctx context.Context, eventID int64) ([]Incident, e
 func (c *Client) setHeaders(req *http.Request) {
 	req.Header.Set("x-rapidapi-key", c.apiKey)
 	req.Header.Set("x-rapidapi-host", "sofascore.p.rapidapi.com")
+}
+
+// IsWC2026 returns true if the event belongs to the FIFA World Cup 2026.
+func IsWC2026(e Event) bool {
+	name := strings.ToLower(e.Tournament.UniqueTournament.Name)
+	return strings.Contains(name, "world cup")
 }
 
 // ParseEvents extracts event flags from a list of incidents.

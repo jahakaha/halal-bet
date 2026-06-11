@@ -19,6 +19,7 @@ type MatchRepository interface {
 	GetInPlay(ctx context.Context) ([]model.Match, error)
 	GetFinishedForEventSync(ctx context.Context) ([]model.Match, error)
 	UpdateEvents(ctx context.Context, matchID, sofascoreID int64, hadRedCard, hadPenalty, hadOwnGoal bool) error
+	UpdateStatus(ctx context.Context, matchID int64, status model.MatchStatus, homeScore, awayScore *int) error
 	GetGroupStandings(ctx context.Context, groupName string) ([]model.StandingEntry, error)
 }
 
@@ -278,6 +279,22 @@ func (r *matchRepository) UpdateEvents(ctx context.Context, matchID, sofascoreID
 		Set("had_red_card", hadRedCard).
 		Set("had_penalty", hadPenalty).
 		Set("had_own_goal", hadOwnGoal).
+		Set("updated_at", sq.Expr("NOW()")).
+		Where("id = ?", matchID).
+		ToSql()
+	if err != nil {
+		return err
+	}
+	_, err = r.db.Exec(ctx, sql, args...)
+	return err
+}
+
+func (r *matchRepository) UpdateStatus(ctx context.Context, matchID int64, status model.MatchStatus, homeScore, awayScore *int) error {
+	sql, args, err := psql.
+		Update("wc2026_matches").
+		Set("status", status).
+		Set("home_score", homeScore).
+		Set("away_score", awayScore).
 		Set("updated_at", sq.Expr("NOW()")).
 		Where("id = ?", matchID).
 		ToSql()

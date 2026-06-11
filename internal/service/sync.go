@@ -38,7 +38,24 @@ func (s *SyncService) SyncWC2026(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("fetch wc2026 matches: %w", err)
 	}
-	return s.upsert(ctx, apiMatches)
+	n, err := s.upsert(ctx, apiMatches)
+	if err != nil {
+		return n, err
+	}
+
+	for _, status := range []string{"IN_PLAY", "FINISHED", "PAUSED"} {
+		live, err := s.client.GetWC2026ByStatus(ctx, status)
+		if err != nil {
+			return n, fmt.Errorf("fetch wc2026 %s: %w", status, err)
+		}
+		if len(live) > 0 {
+			if _, err := s.upsert(ctx, live); err != nil {
+				return n, fmt.Errorf("upsert wc2026 %s: %w", status, err)
+			}
+		}
+	}
+
+	return n, nil
 }
 
 func (s *SyncService) upsert(ctx context.Context, apiMatches []footballdata.Match) (int, error) {
@@ -96,9 +113,9 @@ func (s *SyncService) FinalizeFinishedMatches(ctx context.Context) error {
 	return nil
 }
 
-// SyncMatchEvents fetches Sofascore events for a given date, links them to our
+// SyncMatchEvents fetches WC2026 events from Sofascore, links them to our
 // FINISHED matches that have risky bets, updates event flags, and recalculates points.
-func (s *SyncService) SyncMatchEvents(ctx context.Context, date time.Time) (int, error) {
+func (s *SyncService) SyncMatchEvents(ctx context.Context) (int, error) {
 	pending, err := s.matches.GetFinishedForEventSync(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("get pending event matches: %w", err)
@@ -107,14 +124,21 @@ func (s *SyncService) SyncMatchEvents(ctx context.Context, date time.Time) (int,
 		return 0, nil
 	}
 
-	events, err := s.sofascore.GetEventsByDate(ctx, date)
-	if err != nil {
-		return 0, fmt.Errorf("sofascore events: %w", err)
+	var allEvents []sofascore.Event
+	for page := 0; page <= 2; page++ {
+		events, err := s.sofascore.GetWC2026Events(ctx, page)
+		if err != nil {
+			return 0, fmt.Errorf("sofascore wc2026 events page %d: %w", page, err)
+		}
+		allEvents = append(allEvents, events...)
+		if len(events) == 0 {
+			break
+		}
 	}
 
 	updated := 0
 	for _, m := range pending {
-		event := findEvent(events, m.HomeTeam, m.AwayTeam)
+		event := findEvent(allEvents, m.HomeTeam, m.AwayTeam)
 		if event == nil {
 			continue
 		}
@@ -131,7 +155,6 @@ func (s *SyncService) SyncMatchEvents(ctx context.Context, date time.Time) (int,
 		updated++
 	}
 
-	// Recalculate points now that event flags are set.
 	if updated > 0 {
 		if err := s.FinalizeFinishedMatches(ctx); err != nil {
 			return updated, fmt.Errorf("re-finalize after events: %w", err)
@@ -140,6 +163,7 @@ func (s *SyncService) SyncMatchEvents(ctx context.Context, date time.Time) (int,
 
 	return updated, nil
 }
+
 
 // findEvent matches a Sofascore event to our match by normalizing team names.
 func findEvent(events []sofascore.Event, homeTeam, awayTeam string) *sofascore.Event {

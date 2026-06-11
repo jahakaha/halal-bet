@@ -9,6 +9,14 @@ import (
 // StartScheduler запускает ежедневные задания и поллер лайв матчей.
 // 12:00 Алматы — синк → результаты вчера + матчи завтра
 func StartScheduler(notif *NotificationService, sync *SyncService) {
+	go runDaily(11, 55, almatyLoc, "events", func() {
+		ctx := context.Background()
+		if n, err := sync.SyncMatchEvents(ctx); err != nil {
+			log.Printf("scheduler: events: %v", err)
+		} else {
+			log.Printf("scheduler: events synced for %d matches", n)
+		}
+	})
 	go runDaily(12, 0, almatyLoc, "results", func() {
 		ctx := context.Background()
 		syncAll(ctx, sync)
