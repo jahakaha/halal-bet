@@ -15,7 +15,7 @@ type PredictionRepository interface {
 	GetByUserAndMatch(ctx context.Context, userID, matchID int64) (*model.Prediction, error)
 	GetByMatch(ctx context.Context, matchID int64) ([]model.Prediction, error)
 	GetByMatchWithUsers(ctx context.Context, matchID int64) ([]model.PredictionWithUser, error)
-	CountDoubleDowns(ctx context.Context, userID int64) (int, error)
+	CountDoubleDowns(ctx context.Context, userID, excludeMatchID int64) (int, error)
 	UpdatePoints(ctx context.Context, matchID int64, points map[int64]int) error
 }
 
@@ -136,12 +136,12 @@ func (r *predictionRepository) GetByMatchWithUsers(ctx context.Context, matchID 
 	return result, rows.Err()
 }
 
-func (r *predictionRepository) CountDoubleDowns(ctx context.Context, userID int64) (int, error) {
-	sql, args, err := psql.
-		Select("COUNT(*)").
-		From("predictions").
-		Where("user_id = ? AND double_down = true", userID).
-		ToSql()
+func (r *predictionRepository) CountDoubleDowns(ctx context.Context, userID, excludeMatchID int64) (int, error) {
+	b := psql.Select("COUNT(*)").From("predictions").Where("user_id = ? AND double_down = true", userID)
+	if excludeMatchID != 0 {
+		b = b.Where("match_id != ?", excludeMatchID)
+	}
+	sql, args, err := b.ToSql()
 	if err != nil {
 		return 0, err
 	}

@@ -100,8 +100,7 @@ func (h *Handler) handleMatchSelect(c tele.Context, idStr string) error {
 	}
 
 	msg := buildMatchBetMsg(ctx, h, selected)
-	kb := betTypeKeyboard()
-	sent, sendErr := c.Bot().Send(user, msg, kb, tele.ModeMarkdown)
+	sent, sendErr := c.Bot().Send(user, msg, tele.ModeMarkdown)
 	if sendErr != nil {
 		return c.Respond(&tele.CallbackResponse{
 			Text: "Напиши мне в личку — @" + c.Bot().Me.Username,
@@ -112,6 +111,7 @@ func (h *Handler) handleMatchSelect(c tele.Context, idStr string) error {
 		matchID:  matchID,
 		homeTeam: selected.HomeTeam,
 		awayTeam: selected.AwayTeam,
+		betType:  model.BetTypeExact,
 		msgID:    sent.ID,
 	})
 
@@ -136,19 +136,39 @@ func (h *Handler) handleEditBet(c tele.Context, idStr string) error {
 	}
 
 	msg := buildMatchBetMsg(ctx, h, m)
-	if err := c.Respond(); err != nil {
-		return err
-	}
-	edited, err := c.Bot().Edit(c.Message(), msg, betTypeKeyboard(), tele.ModeMarkdown)
-	if err != nil {
-		return err
-	}
-	h.store.set(c.Sender().ID, &predictionState{
+	st := &predictionState{
 		matchID:  matchID,
 		homeTeam: m.HomeTeam,
 		awayTeam: m.AwayTeam,
-		msgID:    edited.ID,
-	})
+	}
+	userID, dbErr := h.users.GetIDByTelegramID(ctx, c.Sender().ID)
+	if dbErr == nil {
+		if existing, predErr := h.predictions.GetByUserAndMatch(ctx, userID, matchID); predErr == nil {
+			st.doubleDown = existing.DoubleDown
+			switch {
+			case existing.BetPenalty:
+				st.special = specialPenalty
+			case existing.BetRedCard:
+				st.special = specialRedCard
+			case existing.BetOwnGoal:
+				st.special = specialOwnGoal
+			}
+		}
+	}
+
+	if err := c.Respond(); err != nil {
+		return err
+	}
+	st.betType = model.BetTypeExact
+	if err := c.Respond(); err != nil {
+		return err
+	}
+	edited, err := c.Bot().Edit(c.Message(), msg, tele.ModeMarkdown)
+	if err != nil {
+		return err
+	}
+	st.msgID = edited.ID
+	h.store.set(c.Sender().ID, st)
 	return nil
 }
 
@@ -192,16 +212,17 @@ func betTypeKeyboard() *tele.ReplyMarkup {
 
 func buildMatchBetMsg(ctx context.Context, h *Handler, m *model.Match) string {
 	header := fmt.Sprintf("*%s — %s*\n\n", withFlag(m.HomeTeam), withFlag(m.AwayTeam))
+	prompt := "Введи точный счёт\nПример: 2:1"
 	if m.Group == nil {
-		return header + "Выбери тип ставки:"
+		return header + prompt
 	}
 
 	standings, err := h.matches.GetGroupStandings(ctx, *m.Group)
 	if err != nil || len(standings) == 0 {
-		return header + "Выбери тип ставки:"
+		return header + prompt
 	}
 
-	return header + formatGroupStandings(*m.Group, standings) + "\nВыбери тип ставки:"
+	return header + formatGroupStandings(*m.Group, standings) + "\n" + prompt
 }
 
 func formatGroupStandings(groupName string, entries []model.StandingEntry) string {
@@ -315,7 +336,7 @@ func (h *Handler) showPredictForm(c tele.Context, st *predictionState) error {
 	ctx := context.Background()
 	userID, err := h.users.GetIDByTelegramID(ctx, c.Sender().ID)
 	if err == nil {
-		used, _ := h.predictions.CountDoubleDowns(ctx, userID)
+		used, _ := h.predictions.CountDoubleDowns(ctx, userID, st.matchID)
 		st.ddRemaining = model.DoubleDownLimit - used
 	}
 
@@ -368,7 +389,7 @@ func (h *Handler) handleDoubleDownToggle(c tele.Context) error {
 		if err != nil {
 			return err
 		}
-		used, err := h.predictions.CountDoubleDowns(ctx, userID)
+		used, err := h.predictions.CountDoubleDowns(ctx, userID, st.matchID)
 		if err != nil {
 			return err
 		}

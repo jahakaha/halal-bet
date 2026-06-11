@@ -83,25 +83,8 @@ func formatMatchBets(ctx context.Context, h *Handler, m model.Match) string {
 	return sb.String()
 }
 
-func predSummary(p *model.Prediction, homeTeam, awayTeam string) string {
-	switch p.BetType {
-	case model.BetTypeDiff:
-		if p.HomeScore == 0 {
-			return "ничья (разница 0)"
-		}
-		return fmt.Sprintf("разница %d %s", p.HomeScore, goalWord(p.HomeScore))
-	case model.BetTypeOutcome:
-		switch model.OutcomeOf(p.HomeScore, p.AwayScore) {
-		case model.OutcomeHome:
-			return homeTeam
-		case model.OutcomeAway:
-			return awayTeam
-		default:
-			return "ничья"
-		}
-	default:
-		return fmt.Sprintf("%d:%d", p.HomeScore, p.AwayScore)
-	}
+func predSummary(p *model.Prediction, _, _ string) string {
+	return fmt.Sprintf("%d:%d", p.HomeScore, p.AwayScore)
 }
 
 func specialExtras(p *model.Prediction) string {
