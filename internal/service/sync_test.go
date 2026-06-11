@@ -81,6 +81,9 @@ func (r *mockPredictionRepo) GetByMatchWithUsers(_ context.Context, matchID int6
 func (r *mockPredictionRepo) CountDoubleDowns(_ context.Context, _, _ int64) (int, error) {
 	return 0, nil
 }
+func (r *mockPredictionRepo) GetByMatchWithUsersInGroup(_ context.Context, _, _ int64) ([]model.PredictionWithUser, error) {
+	return nil, nil
+}
 func (r *mockPredictionRepo) UpdatePoints(_ context.Context, _ int64, points map[int64]int) error {
 	for id, pts := range points {
 		r.updated[id] = pts
