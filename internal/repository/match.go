@@ -102,7 +102,7 @@ func (r *matchRepository) GetUpcoming(ctx context.Context, from, to time.Time) (
 		Select("id", "external_id", "home_team", "away_team", "match_date", "status", "home_score", "away_score", "stage", "group_name", "matchday", "updated_at").
 		From("wc2026_matches").
 		Where(sq.GtOrEq{"match_date": from.UTC()}).
-		Where(sq.LtOrEq{"match_date": to.UTC()}).
+		Where(sq.Lt{"match_date": to.UTC()}).
 		OrderBy("match_date ASC").
 		ToSql()
 	if err != nil {
