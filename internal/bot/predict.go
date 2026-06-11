@@ -24,6 +24,8 @@ func (h *Handler) OnCallback(c tele.Context) error {
 		return h.handleMatchSelect(c, data[2:])
 	case strings.HasPrefix(data, "eb|"):
 		return h.handleEditBet(c, data[3:])
+	case data == "back|m":
+		return h.handleBackToMatches(c)
 	case strings.HasPrefix(data, "bt|"):
 		return h.handleBetType(c, data[3:])
 	case strings.HasPrefix(data, "oc|"):
@@ -66,7 +68,7 @@ func (h *Handler) OnText(c tele.Context) error {
 	return nil
 }
 
-// handleMatchSelect — пользователь нажал на матч, показываем ставку или выбор типа
+// handleMatchSelect — пользователь нажал на матч, редактируем то же сообщение.
 func (h *Handler) handleMatchSelect(c tele.Context, idStr string) error {
 	matchID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
@@ -78,34 +80,38 @@ func (h *Handler) handleMatchSelect(c tele.Context, idStr string) error {
 	if err != nil {
 		return c.Respond(&tele.CallbackResponse{Text: "Матч не найден"})
 	}
-	if selected.Status != model.MatchStatusTimed {
-		return c.Respond(&tele.CallbackResponse{Text: "Ставки на этот матч закрыты"})
-	}
 
-	user := &tele.User{ID: c.Sender().ID}
-	canEdit := time.Until(selected.MatchDate) > 5*time.Minute
+	canEdit := time.Until(selected.MatchDate) > 5*time.Minute && selected.Status == model.MatchStatusTimed
 
 	userID, dbErr := h.users.GetIDByTelegramID(ctx, c.Sender().ID)
 	if dbErr == nil {
 		if existing, predErr := h.predictions.GetByUserAndMatch(ctx, userID, matchID); predErr == nil {
 			block := groupStandingsBlock(ctx, h, selected)
-			_, sendErr := c.Bot().Send(user, formatExistingBet(block, selected, existing, canEdit), buildExistingBetKeyboard(selected.ID, canEdit), tele.ModeMarkdown)
-			if sendErr != nil {
-				return c.Respond(&tele.CallbackResponse{Text: "Напиши мне в личку — @" + c.Bot().Me.Username})
+			if err := c.Respond(); err != nil {
+				return err
 			}
-			if c.Chat().Type != tele.ChatPrivate {
-				return c.Respond(&tele.CallbackResponse{Text: "Написал тебе в личку!"})
-			}
-			return c.Respond()
+			_, err := c.Bot().Edit(c.Message(), formatExistingBet(block, selected, existing, canEdit), buildExistingBetKeyboard(selected.ID, canEdit), tele.ModeMarkdown)
+			return err
 		}
 	}
 
+	if !canEdit {
+		if err := c.Respond(); err != nil {
+			return err
+		}
+		_, err := c.Bot().Edit(c.Message(),
+			fmt.Sprintf("*%s — %s*\n\nСтавки закрыты.", withFlag(selected.HomeTeam), withFlag(selected.AwayTeam)),
+			backToMatchesKeyboard(), tele.ModeMarkdown)
+		return err
+	}
+
 	msg := buildMatchBetMsg(ctx, h, selected)
-	sent, sendErr := c.Bot().Send(user, msg, tele.ModeMarkdown)
-	if sendErr != nil {
-		return c.Respond(&tele.CallbackResponse{
-			Text: "Напиши мне в личку — @" + c.Bot().Me.Username,
-		})
+	if err := c.Respond(); err != nil {
+		return err
+	}
+	_, err = c.Bot().Edit(c.Message(), msg, backToMatchesKeyboard(), tele.ModeMarkdown)
+	if err != nil {
+		return err
 	}
 
 	h.store.set(c.Sender().ID, &predictionState{
@@ -113,13 +119,9 @@ func (h *Handler) handleMatchSelect(c tele.Context, idStr string) error {
 		homeTeam: selected.HomeTeam,
 		awayTeam: selected.AwayTeam,
 		betType:  model.BetTypeExact,
-		msgID:    sent.ID,
+		msgID:    c.Message().ID,
 	})
-
-	if c.Chat().Type != tele.ChatPrivate {
-		return c.Respond(&tele.CallbackResponse{Text: "Написал тебе в личку!"})
-	}
-	return c.Respond()
+	return nil
 }
 
 func (h *Handler) handleEditBet(c tele.Context, idStr string) error {
@@ -203,12 +205,22 @@ func formatExistingBet(standingsBlock string, m *model.Match, p *model.Predictio
 }
 
 func buildExistingBetKeyboard(matchID int64, canEdit bool) *tele.ReplyMarkup {
-	if !canEdit {
-		return nil
+	rows := [][]tele.InlineButton{}
+	if canEdit {
+		rows = append(rows, []tele.InlineButton{
+			{Text: "Изменить ставку", Data: fmt.Sprintf("eb|%d", matchID)},
+		})
 	}
+	rows = append(rows, []tele.InlineButton{
+		{Text: "← Матчи", Data: "back|m"},
+	})
+	return &tele.ReplyMarkup{InlineKeyboard: rows}
+}
+
+func backToMatchesKeyboard() *tele.ReplyMarkup {
 	return &tele.ReplyMarkup{
 		InlineKeyboard: [][]tele.InlineButton{
-			{{Text: "Изменить ставку", Data: fmt.Sprintf("eb|%d", matchID)}},
+			{{Text: "← Матчи", Data: "back|m"}},
 		},
 	}
 }
@@ -442,6 +454,7 @@ func (h *Handler) handleSave(c tele.Context) error {
 			specialLabel(st.special),
 			ddLabel(st.doubleDown),
 		),
+		backToMatchesKeyboard(),
 		tele.ModeMarkdown,
 	)
 	return err
@@ -524,9 +537,7 @@ func buildPredictKeyboard(st *predictionState) *tele.ReplyMarkup {
 		[]tele.InlineButton{{Text: check(specialPenalty) + "🥅 Пенальти +2/−1", Data: "s|penalty"}},
 		[]tele.InlineButton{{Text: check(specialRedCard) + "🟥 Красная +3/−2", Data: "s|red_card"}},
 		[]tele.InlineButton{{Text: check(specialOwnGoal) + "🤦 Автогол +5/−3", Data: "s|own_goal"}},
-		[]tele.InlineButton{
-			{Text: "Сохранить", Data: "sv"},
-		},
+		[]tele.InlineButton{{Text: "Сохранить", Data: "sv"}, {Text: "← Матчи", Data: "back|m"}},
 	)
 
 	return &tele.ReplyMarkup{InlineKeyboard: rows}
