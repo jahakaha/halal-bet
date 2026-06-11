@@ -20,16 +20,6 @@ func mustLoadLocation(name string) *time.Location {
 	return loc
 }
 
-func tomorrowWindow() (from, to time.Time) {
-	now := time.Now().In(almatyLoc)
-	if testDate != nil {
-		now = testDate.In(almatyLoc)
-	}
-	from = time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, almatyLoc).UTC()
-	to = from.Add(24 * time.Hour)
-	return
-}
-
 // matchesWindow returns today's matches before 12:00 Almaty, tomorrow's after 12:00.
 func matchesWindow() (from, to time.Time) {
 	now := time.Now().In(almatyLoc)
