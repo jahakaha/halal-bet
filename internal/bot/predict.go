@@ -81,6 +81,9 @@ func (h *Handler) handleMatchSelect(c tele.Context, idStr string) error {
 				return err
 			}
 			_, err := c.Bot().Edit(c.Message(), formatExistingBet(block, selected, existing, canEdit), buildExistingBetKeyboard(selected.ID, canEdit), tele.ModeMarkdown)
+			if isNotModified(err) {
+				return nil
+			}
 			return err
 		}
 	}
@@ -133,11 +136,13 @@ func (h *Handler) handleEditBet(c tele.Context, idStr string) error {
 		matchID:  matchID,
 		homeTeam: m.HomeTeam,
 		awayTeam: m.AwayTeam,
+		betType:  model.BetTypeExact,
 	}
-	st.betType = model.BetTypeExact
+	hasPrediction := false
 	userID, dbErr := h.users.GetIDByTelegramID(ctx, c.Sender().ID)
 	if dbErr == nil {
 		if existing, predErr := h.predictions.GetByUserAndMatch(ctx, userID, matchID); predErr == nil {
+			hasPrediction = true
 			st.homeScore = existing.HomeScore
 			st.awayScore = existing.AwayScore
 			st.doubleDown = existing.DoubleDown
@@ -149,16 +154,15 @@ func (h *Handler) handleEditBet(c tele.Context, idStr string) error {
 			case existing.BetOwnGoal:
 				st.special = specialOwnGoal
 			}
+			used, _ := h.predictions.CountDoubleDowns(ctx, userID, matchID)
+			st.ddRemaining = model.DoubleDownLimit - used
 		}
 	}
 	if err := c.Respond(); err != nil {
 		return err
 	}
 	var edited *tele.Message
-	if st.homeScore != 0 || st.awayScore != 0 {
-		ctx2 := context.Background()
-		used, _ := h.predictions.CountDoubleDowns(ctx2, userID, matchID)
-		st.ddRemaining = model.DoubleDownLimit - used
+	if hasPrediction {
 		edited, err = c.Bot().Edit(c.Message(), buildPredictMsg(st), buildPredictKeyboard(st), tele.ModeMarkdown)
 	} else {
 		edited, err = c.Bot().Edit(c.Message(), msg, tele.ModeMarkdown)
@@ -370,6 +374,13 @@ func (h *Handler) handleSave(c tele.Context) error {
 		return err
 	}
 
+	// Auto-register user in the group they came from (encoded in the deeplink).
+	if st.groupChatID != 0 {
+		if g, err := h.groups.GetByChatID(ctx, st.groupChatID); err == nil {
+			h.groups.AddMember(ctx, g.ID, userID) //nolint:errcheck
+		}
+	}
+
 	h.store.del(c.Sender().ID)
 	if err := c.Respond(&tele.CallbackResponse{Text: "Ставка принята!"}); err != nil {
 		return err
@@ -393,6 +404,9 @@ func (h *Handler) editPredictMsg(c tele.Context, st *predictionState) error {
 		return err
 	}
 	_, err := c.Bot().Edit(c.Message(), buildPredictMsg(st), buildPredictKeyboard(st), tele.ModeMarkdown)
+	if isNotModified(err) {
+		return nil
+	}
 	return err
 }
 

@@ -14,6 +14,15 @@ import (
 	"halal-bet/internal/service"
 )
 
+// isNotModified returns true for the Telegram "message is not modified" error.
+// Treat as success — content is already correct.
+func isNotModified(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "message is not modified")
+}
+
 type Handler struct {
 	users       repository.UserRepository
 	matches     repository.MatchRepository
@@ -82,10 +91,14 @@ func (h *Handler) Start(c tele.Context) error {
 		return err
 	}
 
-	// Deep link: /start m_123 — сразу открываем ставку на матч
+	// Deep link: /start m_123 or m_123_c_{chatID}
 	if payload := c.Message().Payload; strings.HasPrefix(payload, "m_") {
-		idStr := strings.TrimPrefix(payload, "m_")
-		return h.openMatchBet(c, idStr)
+		parts := strings.SplitN(strings.TrimPrefix(payload, "m_"), "_c_", 2)
+		var chatID int64
+		if len(parts) == 2 {
+			chatID, _ = strconv.ParseInt(parts[1], 10, 64)
+		}
+		return h.openMatchBet(c, parts[0], chatID)
 	}
 
 	name := sender.Username
@@ -107,7 +120,8 @@ func (h *Handler) OnAddedToGroup(c tele.Context) error {
 }
 
 // openMatchBet устанавливает состояние и показывает ставку или выбор типа.
-func (h *Handler) openMatchBet(c tele.Context, idStr string) error {
+// chatID — Telegram chat ID группы из диплинка (0 если неизвестно).
+func (h *Handler) openMatchBet(c tele.Context, idStr string, chatID int64) error {
 	matchID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		return c.Send("Неверная ссылка на матч.")
@@ -139,11 +153,12 @@ func (h *Handler) openMatchBet(c tele.Context, idStr string) error {
 		return err
 	}
 	h.store.set(c.Sender().ID, &predictionState{
-		matchID:  matchID,
-		homeTeam: m.HomeTeam,
-		awayTeam: m.AwayTeam,
-		betType:  model.BetTypeExact,
-		msgID:    sent.ID,
+		matchID:     matchID,
+		groupChatID: chatID,
+		homeTeam:    m.HomeTeam,
+		awayTeam:    m.AwayTeam,
+		betType:     model.BetTypeExact,
+		msgID:       sent.ID,
 	})
 	return nil
 }
