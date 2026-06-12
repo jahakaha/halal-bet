@@ -31,16 +31,6 @@ func (h *Handler) Bets(c tele.Context) error {
 		return err
 	}
 
-	// Fall back to yesterday if no matches today.
-	if len(matches) == 0 {
-		from = from.Add(-24 * time.Hour)
-		to = to.Add(-24 * time.Hour)
-		matches, err = h.matches.GetUpcoming(ctx, from, to)
-		if err != nil {
-			return err
-		}
-	}
-
 	if len(matches) == 0 {
 		return c.Send("Матчей нет.")
 	}
@@ -79,7 +69,7 @@ func formatMatchBets(ctx context.Context, h *Handler, m model.Match, groupID int
 	}
 
 	if !hasStarted {
-		sb.WriteString("  <i>ставки откроются после старта матча</i>\n")
+		sb.WriteString("  <i>матч ещё не стартовал</i>\n")
 		return sb.String()
 	}
 

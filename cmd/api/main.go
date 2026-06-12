@@ -1,5 +1,6 @@
 package main
 
+<<<<<<< Updated upstream
 import (
 	"context"
 	"fmt"
@@ -24,8 +25,23 @@ import (
 	"halal-bet/internal/repository"
 	"halal-bet/internal/service"
 )
+||||||| Stash base
+import "fmt"
+=======
+import (
+	"log"
+	"net/http"
+	"os"
+
+	"github.com/go-chi/chi/v5"
+	tele "gopkg.in/telebot.v3"
+
+	"halal-bet/internal/bot"
+)
+>>>>>>> Stashed changes
 
 func main() {
+<<<<<<< Updated upstream
 	sqlDB, err := sql.Open("pgx", os.Getenv("DATABASE_URL"))
 	if err != nil {
 		log.Fatal(err)
@@ -143,6 +159,35 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(ctx)
+||||||| Stash base
+	fmt.Println("Hello bet")
+=======
+	b, err := tele.NewBot(tele.Settings{
+		Token:  os.Getenv("TELEGRAM_TOKEN"),
+		Poller: &tele.LongPoller{Timeout: 10},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	h := bot.NewHandler()
+	h.Register(b)
+
+	go b.Start()
+
+	r := chi.NewRouter()
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	log.Printf("listening on :%s", port)
+	log.Fatal(http.ListenAndServe(":"+port, r))
+>>>>>>> Stashed changes
 }
 
 func parseDateParam(s string) (time.Time, error) {

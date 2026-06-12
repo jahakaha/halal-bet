@@ -1,19 +1,35 @@
 package bot
 
 import (
+<<<<<<< Updated upstream
 	"context"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
+||||||| Stash base
+	"context"
+	"fmt"
+	"time"
+
+=======
+>>>>>>> Stashed changes
 	tele "gopkg.in/telebot.v3"
+<<<<<<< Updated upstream
 
 	"halal-bet/internal/model"
 	"halal-bet/internal/repository"
 	"halal-bet/internal/service"
+||||||| Stash base
+
+	"halal-bet/internal/model"
+	"halal-bet/internal/repository"
+=======
+>>>>>>> Stashed changes
 )
 
+<<<<<<< Updated upstream
 // isNotModified returns true for the Telegram "message is not modified" error.
 // Treat as success — content is already correct.
 func isNotModified(err error) bool {
@@ -22,7 +38,15 @@ func isNotModified(err error) bool {
 	}
 	return strings.Contains(err.Error(), "message is not modified")
 }
+||||||| Stash base
+type Handler struct {
+	users repository.UserRepository
+}
+=======
+type Handler struct{}
+>>>>>>> Stashed changes
 
+<<<<<<< Updated upstream
 type Handler struct {
 	users       repository.UserRepository
 	matches     repository.MatchRepository
@@ -50,6 +74,13 @@ func NewHandler(
 		leaderboard: leaderboard,
 		store:       newStateStore(),
 	}
+||||||| Stash base
+func NewHandler(users repository.UserRepository) *Handler {
+	return &Handler{users: users}
+=======
+func NewHandler() *Handler {
+	return &Handler{}
+>>>>>>> Stashed changes
 }
 
 func (h *Handler) Register(b *tele.Bot) {
@@ -76,6 +107,7 @@ func (h *Handler) Register(b *tele.Bot) {
 }
 
 func (h *Handler) Start(c tele.Context) error {
+<<<<<<< Updated upstream
 	sender := c.Sender()
 	ctx := context.Background()
 
@@ -263,4 +295,21 @@ func (h *Handler) registerGroupMember(c tele.Context) error {
 		return err
 	}
 	return h.groups.AddMember(ctx, group.ID, userID)
+||||||| Stash base
+	sender := c.Sender()
+
+	user := &model.User{
+		TelegramID: sender.ID,
+		Username:   sender.Username,
+		CreatedAt:  time.Now(),
+	}
+
+	if err := h.users.CreateIfNotExist(context.Background(), user); err != nil {
+		return err
+	}
+
+	return c.Send(fmt.Sprintf("Привет, %s! Добро пожаловать в HalalBet 🎯", sender.FirstName))
+=======
+	return c.Send("Hello World")
+>>>>>>> Stashed changes
 }
