@@ -25,7 +25,7 @@ func (h *Handler) Bets(c tele.Context) error {
 		return c.Send("Группа не зарегистрирована. Напишите /start сначала.")
 	}
 
-	from, to := todayWindow()
+	from, to := betsWindow()
 	matches, err := h.matches.GetUpcoming(ctx, from, to)
 	if err != nil {
 		return err

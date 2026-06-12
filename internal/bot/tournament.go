@@ -11,7 +11,19 @@ import (
 	"halal-bet/internal/model"
 )
 
-var TournamentDeadline = time.Date(2026, 6, 11, 23, 30, 0, 0, almatyLoc)
+// GroupStageDeadline — последний день группового этапа ЧМ26.
+// После этой даты предсказания закрыты для всех.
+var GroupStageDeadline = time.Date(2026, 7, 2, 0, 0, 0, 0, almatyLoc)
+
+// personalDeadline возвращает персональный дедлайн юзера:
+// 3 дня с момента регистрации, но не позже конца группового этапа.
+func personalDeadline(registeredAt time.Time) time.Time {
+	d := registeredAt.Add(72 * time.Hour)
+	if d.After(GroupStageDeadline) {
+		return GroupStageDeadline
+	}
+	return d
+}
 
 func (h *Handler) Predict(c tele.Context) error {
 	if c.Chat().Type != tele.ChatPrivate {
@@ -19,18 +31,24 @@ func (h *Handler) Predict(c tele.Context) error {
 	}
 
 	ctx := context.Background()
-	userID, err := h.users.GetIDByTelegramID(ctx, c.Sender().ID)
+	user, err := h.users.GetByTelegramID(ctx, c.Sender().ID)
 	if err != nil {
 		return err
 	}
 
-	preds, _ := h.tournament.GetByUser(ctx, userID)
+	preds, _ := h.tournament.GetByUser(ctx, user.ID)
+	now := time.Now()
 
-	if time.Now().After(TournamentDeadline) {
+	if now.After(GroupStageDeadline) {
 		return c.Send(formatTournamentResults(preds), tele.ModeMarkdown)
 	}
 
-	return c.Send(formatTournamentMenu(preds), &tele.ReplyMarkup{
+	deadline := personalDeadline(user.CreatedAt)
+	if now.After(deadline) {
+		return c.Send(formatTournamentResults(preds), tele.ModeMarkdown)
+	}
+
+	return c.Send(formatTournamentMenu(preds, deadline), &tele.ReplyMarkup{
 		InlineKeyboard: [][]tele.InlineButton{
 			{{Text: "🏆 Победитель ЧМ26", Data: "tp|" + model.TournamentBetWinner}},
 			{{Text: "⚽️ Лучший бомбардир", Data: "tp|" + model.TournamentBetTopScorer}},
@@ -39,7 +57,13 @@ func (h *Handler) Predict(c tele.Context) error {
 }
 
 func (h *Handler) handleTournamentBet(c tele.Context, betType string) error {
-	if time.Now().After(TournamentDeadline) {
+	ctx := context.Background()
+	user, err := h.users.GetByTelegramID(ctx, c.Sender().ID)
+	if err != nil {
+		return c.Respond(&tele.CallbackResponse{Text: "Пользователь не найден"})
+	}
+	now := time.Now()
+	if now.After(GroupStageDeadline) || now.After(personalDeadline(user.CreatedAt)) {
 		return c.Respond(&tele.CallbackResponse{Text: "Приём ставок закрыт"})
 	}
 
@@ -73,7 +97,7 @@ func (h *Handler) handleTournamentText(c tele.Context, betType, text string) err
 	return c.Send(fmt.Sprintf("Принято! %s → *%s*", label, text), tele.ModeMarkdown)
 }
 
-func formatTournamentMenu(preds []model.TournamentPrediction) string {
+func formatTournamentMenu(preds []model.TournamentPrediction, deadline time.Time) string {
 	byType := map[string]string{}
 	for _, p := range preds {
 		byType[p.Type] = p.Value
@@ -94,8 +118,16 @@ func formatTournamentMenu(preds []model.TournamentPrediction) string {
 		sb.WriteString("⚽️ Бомбардир: _не указан_\n")
 	}
 
-	sb.WriteString("\nМожно изменить до 11 июня 23:30:")
+	d := deadline.In(almatyLoc)
+	sb.WriteString(fmt.Sprintf("\n_Можно изменить до %d %s %02d:%02d_",
+		d.Day(), monthName(d.Month()), d.Hour(), d.Minute()))
 	return sb.String()
+}
+
+func monthName(m time.Month) string {
+	months := []string{"", "января", "февраля", "марта", "апреля", "мая", "июня",
+		"июля", "августа", "сентября", "октября", "ноября", "декабря"}
+	return months[m]
 }
 
 func formatTournamentResults(preds []model.TournamentPrediction) string {

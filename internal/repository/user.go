@@ -14,6 +14,7 @@ var psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 type UserRepository interface {
 	CreateIfNotExist(ctx context.Context, user *model.User) error
 	GetIDByTelegramID(ctx context.Context, telegramID int64) (int64, error)
+	GetByTelegramID(ctx context.Context, telegramID int64) (*model.User, error)
 }
 
 type userRepository struct {
@@ -36,6 +37,23 @@ func (r *userRepository) GetIDByTelegramID(ctx context.Context, telegramID int64
 	var id int64
 	err = r.db.QueryRow(ctx, sql, args...).Scan(&id)
 	return id, err
+}
+
+func (r *userRepository) GetByTelegramID(ctx context.Context, telegramID int64) (*model.User, error) {
+	sql, args, err := psql.
+		Select("id", "telegram_id", "username", "created_at").
+		From("users").
+		Where("telegram_id = ?", telegramID).
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+	var u model.User
+	err = r.db.QueryRow(ctx, sql, args...).Scan(&u.ID, &u.TelegramID, &u.Username, &u.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
 }
 
 func (r *userRepository) CreateIfNotExist(ctx context.Context, user *model.User) error {

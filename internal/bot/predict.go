@@ -28,10 +28,6 @@ func (h *Handler) OnCallback(c tele.Context) error {
 		return h.handleBackToMatches(c)
 	case data == "back|grp":
 		return h.handleBackToGroups(c)
-	case strings.HasPrefix(data, "bt|"):
-		return h.handleBetType(c, data[3:])
-	case strings.HasPrefix(data, "oc|"):
-		return h.handleOutcomeSelect(c, data[3:])
 	case strings.HasPrefix(data, "s|"):
 		return h.handleSpecialToggle(c, data[2:])
 	case data == "dd":
@@ -59,15 +55,7 @@ func (h *Handler) OnText(c tele.Context) error {
 		return nil
 	}
 
-	switch st.betType {
-	case model.BetTypeExact:
-		return h.parseExactScore(c, st, text)
-	case model.BetTypeDiff:
-		return h.parseDiff(c, st, text)
-	case model.BetTypeOutcome:
-		return h.parseOutcome(c, st, text)
-	}
-	return nil
+	return h.parseExactScore(c, st, text)
 }
 
 // handleMatchSelect — пользователь нажал на матч, редактируем то же сообщение.
@@ -146,9 +134,12 @@ func (h *Handler) handleEditBet(c tele.Context, idStr string) error {
 		homeTeam: m.HomeTeam,
 		awayTeam: m.AwayTeam,
 	}
+	st.betType = model.BetTypeExact
 	userID, dbErr := h.users.GetIDByTelegramID(ctx, c.Sender().ID)
 	if dbErr == nil {
 		if existing, predErr := h.predictions.GetByUserAndMatch(ctx, userID, matchID); predErr == nil {
+			st.homeScore = existing.HomeScore
+			st.awayScore = existing.AwayScore
 			st.doubleDown = existing.DoubleDown
 			switch {
 			case existing.BetPenalty:
@@ -160,12 +151,18 @@ func (h *Handler) handleEditBet(c tele.Context, idStr string) error {
 			}
 		}
 	}
-
-	st.betType = model.BetTypeExact
 	if err := c.Respond(); err != nil {
 		return err
 	}
-	edited, err := c.Bot().Edit(c.Message(), msg, tele.ModeMarkdown)
+	var edited *tele.Message
+	if st.homeScore != 0 || st.awayScore != 0 {
+		ctx2 := context.Background()
+		used, _ := h.predictions.CountDoubleDowns(ctx2, userID, matchID)
+		st.ddRemaining = model.DoubleDownLimit - used
+		edited, err = c.Bot().Edit(c.Message(), buildPredictMsg(st), buildPredictKeyboard(st), tele.ModeMarkdown)
+	} else {
+		edited, err = c.Bot().Edit(c.Message(), msg, tele.ModeMarkdown)
+	}
 	if err != nil {
 		return err
 	}
@@ -258,43 +255,6 @@ func formatGroupStandings(groupName string, entries []model.StandingEntry) strin
 	return sb.String()
 }
 
-// handleBetType — пользователь выбрал тип ставки
-func (h *Handler) handleBetType(c tele.Context, betType string) error {
-	st, ok := h.store.get(c.Sender().ID)
-	if !ok {
-		return c.Respond()
-	}
-
-	st.betType = betType
-
-	var prompt string
-	switch betType {
-	case model.BetTypeExact:
-		prompt = fmt.Sprintf("*%s — %s*\n\nВведи точный счёт\nПример: 2:1", withFlag(st.homeTeam), withFlag(st.awayTeam))
-	case model.BetTypeDiff:
-		prompt = fmt.Sprintf("*%s — %s*\n\nВведи разницу голов (число без знака)\n2 = кто-то выиграет на 2 гола\n0 = ничья", withFlag(st.homeTeam), withFlag(st.awayTeam))
-	case model.BetTypeOutcome:
-		kb := &tele.ReplyMarkup{
-			InlineKeyboard: [][]tele.InlineButton{
-				{{Text: withFlag(st.homeTeam), Data: "oc|home"}},
-				{{Text: "Ничья", Data: "oc|draw"}},
-				{{Text: withFlag(st.awayTeam), Data: "oc|away"}},
-			},
-		}
-		prompt = fmt.Sprintf("*%s — %s*\n\nКто победит?", withFlag(st.homeTeam), withFlag(st.awayTeam))
-		if err := c.Respond(); err != nil {
-			return err
-		}
-		_, err := c.Bot().Edit(c.Message(), prompt, kb, tele.ModeMarkdown)
-		return err
-	}
-
-	if err := c.Respond(); err != nil {
-		return err
-	}
-	_, err := c.Bot().Edit(c.Message(), prompt, tele.ModeMarkdown)
-	return err
-}
 
 func (h *Handler) parseExactScore(c tele.Context, st *predictionState, text string) error {
 	parts := strings.Split(text, ":")
@@ -311,15 +271,6 @@ func (h *Handler) parseExactScore(c tele.Context, st *predictionState, text stri
 	return h.showPredictForm(c, st)
 }
 
-func (h *Handler) parseDiff(c tele.Context, st *predictionState, text string) error {
-	diff, err := strconv.Atoi(text)
-	if err != nil || diff < 0 {
-		return h.editPrompt(c, st, fmt.Sprintf("*%s — %s*\n\nВведи разницу голов\nПример: 2 (на два гола), 0 (ничья)\n\n⚠️ Введи целое число", withFlag(st.homeTeam), withFlag(st.awayTeam)))
-	}
-	st.homeScore = diff
-	st.awayScore = 0
-	return h.showPredictForm(c, st)
-}
 
 func (h *Handler) editPrompt(c tele.Context, st *predictionState, text string) error {
 	editable := &tele.Message{ID: st.msgID, Chat: c.Chat()}
@@ -327,23 +278,6 @@ func (h *Handler) editPrompt(c tele.Context, st *predictionState, text string) e
 	return err
 }
 
-func (h *Handler) parseOutcome(c tele.Context, st *predictionState, text string) error {
-	lower := strings.ToLower(strings.TrimSpace(text))
-	switch {
-	case lower == "ничья" || lower == "0":
-		st.homeScore = 0
-		st.awayScore = 0
-	case strings.Contains(strings.ToLower(st.homeTeam), lower) || strings.EqualFold(text, st.homeTeam):
-		st.homeScore = 1
-		st.awayScore = 0
-	case strings.Contains(strings.ToLower(st.awayTeam), lower) || strings.EqualFold(text, st.awayTeam):
-		st.homeScore = 0
-		st.awayScore = 1
-	default:
-		return c.Send(fmt.Sprintf("Не понял. Введи:\n%s\n%s\nничья", st.homeTeam, st.awayTeam))
-	}
-	return h.showPredictForm(c, st)
-}
 
 func (h *Handler) showPredictForm(c tele.Context, st *predictionState) error {
 	ctx := context.Background()
@@ -358,24 +292,6 @@ func (h *Handler) showPredictForm(c tele.Context, st *predictionState) error {
 	return err
 }
 
-func (h *Handler) handleOutcomeSelect(c tele.Context, outcome string) error {
-	st, ok := h.store.get(c.Sender().ID)
-	if !ok {
-		return c.Respond()
-	}
-	switch outcome {
-	case "home":
-		st.homeScore, st.awayScore = 1, 0
-	case "away":
-		st.homeScore, st.awayScore = 0, 1
-	default:
-		st.homeScore, st.awayScore = 0, 0
-	}
-	if err := c.Respond(); err != nil {
-		return err
-	}
-	return h.showPredictForm(c, st)
-}
 
 func (h *Handler) handleSpecialToggle(c tele.Context, bet string) error {
 	st, ok := h.store.get(c.Sender().ID)
@@ -423,6 +339,16 @@ func (h *Handler) handleSave(c tele.Context) error {
 	}
 
 	ctx := context.Background()
+
+	m, err := h.matches.GetByID(ctx, st.matchID)
+	if err != nil {
+		return c.Respond(&tele.CallbackResponse{Text: "Матч не найден"})
+	}
+	if m.Status != model.MatchStatusTimed || time.Until(m.MatchDate) <= 5*time.Minute {
+		h.store.del(c.Sender().ID)
+		return c.Respond(&tele.CallbackResponse{Text: "Ставки на этот матч уже закрыты"})
+	}
+
 	userID, err := h.users.GetIDByTelegramID(ctx, c.Sender().ID)
 	if err != nil {
 		return err
@@ -482,36 +408,9 @@ func buildPredictMsg(st *predictionState) string {
 }
 
 func betSummary(st *predictionState) string {
-	switch st.betType {
-	case model.BetTypeDiff:
-		if st.homeScore == 0 {
-			return "Ничья (разница 0)"
-		}
-		return fmt.Sprintf("Разница в %d %s", st.homeScore, goalWord(st.homeScore))
-	case model.BetTypeOutcome:
-		switch model.OutcomeOf(st.homeScore, st.awayScore) {
-		case model.OutcomeHome:
-			return "Победа " + withFlag(st.homeTeam)
-		case model.OutcomeAway:
-			return "Победа " + withFlag(st.awayTeam)
-		default:
-			return "Ничья"
-		}
-	default:
-		return fmt.Sprintf("%d:%d", st.homeScore, st.awayScore)
-	}
+	return fmt.Sprintf("%d:%d", st.homeScore, st.awayScore)
 }
 
-func goalWord(n int) string {
-	switch {
-	case n == 1:
-		return "гол"
-	case n >= 2 && n <= 4:
-		return "гола"
-	default:
-		return "голов"
-	}
-}
 
 func buildPredictKeyboard(st *predictionState) *tele.ReplyMarkup {
 	check := func(s specialBet) string {
