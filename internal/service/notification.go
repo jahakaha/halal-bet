@@ -94,13 +94,13 @@ func (s *NotificationService) SendDailyMatches(ctx context.Context, now time.Tim
 
 	botUsername := s.bot.Me.Username
 	standingsMsg := s.buildGroupStandingsMsg(ctx, matches)
-	matchesMsg, markup := formatTomorrowMatches(tomorrow, matches, botUsername)
 
 	for _, g := range chatGroups {
 		chat := &tele.Chat{ID: g.TelegramChatID}
 		if standingsMsg != "" {
 			s.bot.Send(chat, standingsMsg, tele.ModeMarkdown) //nolint:errcheck
 		}
+		matchesMsg, markup := formatTomorrowMatches(tomorrow, matches, botUsername, g.TelegramChatID)
 		s.bot.Send(chat, matchesMsg, markup) //nolint:errcheck
 	}
 }
@@ -242,7 +242,7 @@ func formatGroupStandings(groupName string, entries []model.StandingEntry) strin
 	return sb.String()
 }
 
-func formatTomorrowMatches(date time.Time, matches []model.Match, botUsername string) (string, *tele.ReplyMarkup) {
+func formatTomorrowMatches(date time.Time, matches []model.Match, botUsername string, chatID int64) (string, *tele.ReplyMarkup) {
 	header := fmt.Sprintf("📅 *Матчи %s*\n\nСделать ставку 👇", formatDate(date))
 	rows := make([][]tele.InlineButton, 0, len(matches))
 	for _, m := range matches {
@@ -250,7 +250,7 @@ func formatTomorrowMatches(date time.Time, matches []model.Match, botUsername st
 		label := fmt.Sprintf("%s — %s  %s", util.WithFlag(m.HomeTeam), util.WithFlag(m.AwayTeam), localTime)
 		btn := tele.InlineButton{
 			Text: label,
-			URL:  fmt.Sprintf("https://t.me/%s?start=m_%d", botUsername, m.ID),
+			URL:  fmt.Sprintf("https://t.me/%s?start=m_%d_c_%d", botUsername, m.ID, chatID),
 		}
 		rows = append(rows, []tele.InlineButton{btn})
 	}

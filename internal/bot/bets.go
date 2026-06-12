@@ -31,20 +31,22 @@ func (h *Handler) Bets(c tele.Context) error {
 		return err
 	}
 
-	now := time.Now().UTC()
-	var started []model.Match
-	for _, m := range matches {
-		if m.Status == model.MatchStatusInPlay || m.Status == model.MatchStatusPaused || m.Status == model.MatchStatusFinished || m.MatchDate.Before(now) {
-			started = append(started, m)
+	// Fall back to yesterday if no matches today.
+	if len(matches) == 0 {
+		from = from.Add(-24 * time.Hour)
+		to = to.Add(-24 * time.Hour)
+		matches, err = h.matches.GetUpcoming(ctx, from, to)
+		if err != nil {
+			return err
 		}
 	}
 
-	if len(started) == 0 {
-		return c.Send("Матчи ещё не начались.")
+	if len(matches) == 0 {
+		return c.Send("Матчей нет.")
 	}
 
 	var sb strings.Builder
-	for _, m := range started {
+	for _, m := range matches {
 		sb.WriteString(formatMatchBets(ctx, h, m, group.ID))
 		sb.WriteString("\n")
 	}
@@ -54,6 +56,12 @@ func (h *Handler) Bets(c tele.Context) error {
 
 func formatMatchBets(ctx context.Context, h *Handler, m model.Match, groupID int64) string {
 	var sb strings.Builder
+
+	localTime := m.MatchDate.In(almatyLoc).Format("15:04")
+	hasStarted := m.Status == model.MatchStatusInPlay ||
+		m.Status == model.MatchStatusPaused ||
+		m.Status == model.MatchStatusFinished ||
+		m.MatchDate.Before(time.Now())
 
 	switch m.Status {
 	case model.MatchStatusFinished:
@@ -66,6 +74,13 @@ func formatMatchBets(ctx context.Context, h *Handler, m model.Match, groupID int
 		sb.WriteString(fmt.Sprintf("🟢 <b>%s — %s</b> (идёт)\n", m.HomeTeam, m.AwayTeam))
 	case model.MatchStatusPaused:
 		sb.WriteString(fmt.Sprintf("⏸ <b>%s — %s</b> (перерыв)\n", m.HomeTeam, m.AwayTeam))
+	default:
+		sb.WriteString(fmt.Sprintf("🕐 <b>%s — %s</b>  %s\n", m.HomeTeam, m.AwayTeam, localTime))
+	}
+
+	if !hasStarted {
+		sb.WriteString("  <i>ставки откроются после старта матча</i>\n")
+		return sb.String()
 	}
 
 	var preds []model.PredictionWithUser

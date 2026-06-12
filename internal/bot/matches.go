@@ -40,9 +40,8 @@ var testDate *time.Time
 
 func SetTestDate(d *time.Time) { testDate = d }
 
-// betsWindow returns yesterday before 18:00 Almaty, today after 18:00.
-// Before 18:00 shows yesterday's results; after 18:00 switches to today
-// so bets are hidden until matches start (building anticipation).
+// betsWindow returns yesterday before 18:00 Almaty (to show results),
+// and today after 18:00 (to show upcoming matches with hidden bets).
 func betsWindow() (from, to time.Time) {
 	now := time.Now().In(almatyLoc)
 	if testDate != nil {

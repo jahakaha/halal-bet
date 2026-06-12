@@ -13,6 +13,7 @@ const (
 
 type predictionState struct {
 	matchID     int64
+	groupChatID int64 // Telegram chat ID of the group the user came from (0 if unknown)
 	homeTeam    string
 	awayTeam    string
 	betType     string
