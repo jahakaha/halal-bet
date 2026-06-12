@@ -9,8 +9,10 @@ tool (
 )
 
 require (
+	github.com/Masterminds/squirrel v1.5.4
 	github.com/go-chi/chi/v5 v5.3.0
 	github.com/jackc/pgx/v5 v5.9.2
+	github.com/pressly/goose/v3 v3.27.1
 	gopkg.in/telebot.v3 v3.3.8
 )
 
@@ -20,7 +22,6 @@ require (
 	github.com/BurntSushi/toml v1.4.1-0.20240526193622-a339e1f7089c // indirect
 	github.com/ClickHouse/ch-go v0.71.0 // indirect
 	github.com/ClickHouse/clickhouse-go/v2 v2.45.0 // indirect
-	github.com/Masterminds/squirrel v1.5.4 // indirect
 	github.com/air-verse/air v1.65.3 // indirect
 	github.com/andybalholm/brotli v1.2.1 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
@@ -31,13 +32,8 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/elastic/go-sysinfo v1.15.4 // indirect
 	github.com/elastic/go-windows v1.0.2 // indirect
-<<<<<<< Updated upstream
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
-||||||| Stash base
-=======
-	github.com/go-chi/chi/v5 v5.3.0 // indirect
->>>>>>> Stashed changes
 	github.com/go-faster/city v1.0.1 // indirect
 	github.com/go-faster/errors v0.7.1 // indirect
 	github.com/go-sql-driver/mysql v1.9.3 // indirect
@@ -65,7 +61,6 @@ require (
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pierrec/lz4/v4 v4.1.26 // indirect
-	github.com/pressly/goose/v3 v3.27.1 // indirect
 	github.com/prometheus/procfs v0.20.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
@@ -95,7 +90,6 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260420184626-e10c466a9529 // indirect
 	google.golang.org/grpc v1.80.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
-	gopkg.in/telebot.v3 v3.3.8 // indirect
 	honnef.co/go/tools v0.7.0 // indirect
 	howett.net/plist v1.0.1 // indirect
 	modernc.org/libc v1.72.1 // indirect
