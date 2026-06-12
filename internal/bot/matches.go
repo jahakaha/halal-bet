@@ -40,18 +40,21 @@ var testDate *time.Time
 
 func SetTestDate(d *time.Time) { testDate = d }
 
-// betsWindow returns yesterday before 18:00 Almaty (to show results),
-// and today after 18:00 (to show upcoming matches with hidden bets).
+// betsWindow returns the game-night window for /bets.
+// WC2026 matches run 22:00–11:00 Almaty. The window is noon-to-noon.
+// Before 18:00: show previous game night (results).
+// After 18:00: show current game night (upcoming, bets appear when match starts).
 func betsWindow() (from, to time.Time) {
 	now := time.Now().In(almatyLoc)
 	if testDate != nil {
 		now = testDate.In(almatyLoc)
 	}
-	offset := -1
-	if now.Hour() >= 18 {
-		offset = 0
+	noon := time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, almatyLoc)
+	if now.Hour() < 18 {
+		from = noon.AddDate(0, 0, -1) // previous game night
+	} else {
+		from = noon // current game night
 	}
-	from = time.Date(now.Year(), now.Month(), now.Day()+offset, 0, 0, 0, 0, almatyLoc).UTC()
 	to = from.Add(24 * time.Hour)
 	return
 }
