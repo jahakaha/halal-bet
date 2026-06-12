@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -46,11 +47,12 @@ func (s *SyncService) SyncWC2026(ctx context.Context) (int, error) {
 	for _, status := range []string{"IN_PLAY", "FINISHED", "PAUSED"} {
 		live, err := s.client.GetWC2026ByStatus(ctx, status)
 		if err != nil {
-			return n, fmt.Errorf("fetch wc2026 %s: %w", status, err)
+			log.Printf("sync: fetch wc2026 %s: %v", status, err)
+			continue
 		}
 		if len(live) > 0 {
 			if _, err := s.upsert(ctx, live); err != nil {
-				return n, fmt.Errorf("upsert wc2026 %s: %w", status, err)
+				log.Printf("sync: upsert wc2026 %s: %v", status, err)
 			}
 		}
 	}
@@ -125,7 +127,7 @@ func (s *SyncService) SyncMatchEvents(ctx context.Context) (int, error) {
 	}
 
 	var allEvents []sofascore.Event
-	for page := 0; page <= 2; page++ {
+	for page := 0; page <= 10; page++ {
 		events, err := s.sofascore.GetWC2026Events(ctx, page)
 		if err != nil {
 			return 0, fmt.Errorf("sofascore wc2026 events page %d: %w", page, err)
@@ -179,8 +181,17 @@ func findEvent(events []sofascore.Event, homeTeam, awayTeam string) *sofascore.E
 }
 
 func nameMatch(a, b string) bool {
-	return strings.Contains(normalizeName(a), normalizeName(b)) ||
-		strings.Contains(normalizeName(b), normalizeName(a))
+	na, nb := normalizeName(a), normalizeName(b)
+	if na == nb {
+		return true
+	}
+	// only allow substring match when the shorter name is at least 5 chars
+	// to avoid false positives like "iran" inside "ukraine"
+	shorter, longer := na, nb
+	if len(na) > len(nb) {
+		shorter, longer = nb, na
+	}
+	return len(shorter) >= 5 && strings.Contains(longer, shorter)
 }
 
 func normalizeName(s string) string {

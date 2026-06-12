@@ -27,6 +27,7 @@ func StartScheduler(notif *NotificationService, sync *SyncService) {
 		notif.SendDailyMatches(ctx, time.Now())
 	})
 	go runLiveSync(sync)
+	go runPreMatchNotify(notif)
 }
 
 func syncAll(ctx context.Context, sync *SyncService) {
@@ -94,6 +95,43 @@ func quietWindowSleep() time.Duration {
 
 	next21 := time.Date(now.Year(), now.Month(), now.Day(), 21, 0, 0, 0, almatyLoc)
 	return time.Until(next21)
+}
+
+// runPreMatchNotify sleeps until 1 hour before the first match of the day,
+// then sends pre-match reminders per group showing who hasn't bet yet.
+// If no matches today or already past the notify time, sleeps until next day.
+func runPreMatchNotify(notif *NotificationService) {
+	for {
+		ctx := context.Background()
+		now := time.Now().In(almatyLoc)
+		dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, almatyLoc).UTC()
+		dayEnd := dayStart.Add(24 * time.Hour)
+
+		tomorrow := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 5, 0, 0, almatyLoc)
+
+		matches, err := notif.matches.GetUpcoming(ctx, dayStart, dayEnd)
+		if err != nil || len(matches) == 0 {
+			log.Printf("pre-match: no matches today, sleeping until %s", tomorrow.Format(time.RFC3339))
+			time.Sleep(time.Until(tomorrow))
+			continue
+		}
+
+		notifyAt := matches[0].MatchDate.Add(-1 * time.Hour)
+		if time.Now().After(notifyAt) {
+			log.Printf("pre-match: notify time passed, sleeping until %s", tomorrow.Format(time.RFC3339))
+			time.Sleep(time.Until(tomorrow))
+			continue
+		}
+
+		log.Printf("pre-match: sleeping until %s (1h before first match)", notifyAt.In(almatyLoc).Format("15:04"))
+		time.Sleep(time.Until(notifyAt))
+
+		notif.SendPreMatchReminder(ctx, time.Now())
+
+		now2 := time.Now().In(almatyLoc)
+		nextDay := time.Date(now2.Year(), now2.Month(), now2.Day()+1, 0, 5, 0, 0, almatyLoc)
+		time.Sleep(time.Until(nextDay))
+	}
 }
 
 func runDaily(hour, min int, loc *time.Location, name string, fn func()) {

@@ -43,9 +43,12 @@ func (r *matchRepository) Upsert(ctx context.Context, matches []model.Match) err
 			home_team   = EXCLUDED.home_team,
 			away_team   = EXCLUDED.away_team,
 			match_date  = EXCLUDED.match_date,
-			status      = EXCLUDED.status,
-			home_score  = EXCLUDED.home_score,
-			away_score  = EXCLUDED.away_score,
+			status      = CASE
+				WHEN wc2026_matches.status = 'FINISHED' AND EXCLUDED.status = 'TIMED' THEN 'FINISHED'
+				ELSE EXCLUDED.status
+			END,
+			home_score  = COALESCE(EXCLUDED.home_score, wc2026_matches.home_score),
+			away_score  = COALESCE(EXCLUDED.away_score, wc2026_matches.away_score),
 			stage       = EXCLUDED.stage,
 			group_name  = EXCLUDED.group_name,
 			matchday    = EXCLUDED.matchday,

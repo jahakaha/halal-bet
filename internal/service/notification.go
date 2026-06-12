@@ -105,6 +105,56 @@ func (s *NotificationService) SendDailyMatches(ctx context.Context, now time.Tim
 	}
 }
 
+// SendPreMatchReminder sends a reminder 1 hour before the first match of the day.
+// Per group chat: lists today's matches and who hasn't bet yet.
+// If all members have bet on all matches, no message is sent to that group.
+func (s *NotificationService) SendPreMatchReminder(ctx context.Context, now time.Time) {
+	now = now.In(almatyLoc)
+	dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, almatyLoc).UTC()
+	dayEnd := dayStart.Add(24 * time.Hour)
+
+	matches, err := s.matches.GetUpcoming(ctx, dayStart, dayEnd)
+	if err != nil || len(matches) == 0 {
+		return
+	}
+
+	chatGroups, err := s.groups.GetAll(ctx)
+	if err != nil || len(chatGroups) == 0 {
+		return
+	}
+
+	botUsername := s.bot.Me.Username
+
+	for _, g := range chatGroups {
+		missingByMatch := make([][]string, len(matches))
+		anyMissing := false
+
+		for i, m := range matches {
+			missing, err := s.groups.GetMembersWithoutBet(ctx, g.ID, m.ID)
+			if err != nil {
+				continue
+			}
+			missingByMatch[i] = missing
+			if len(missing) > 0 {
+				anyMissing = true
+			}
+		}
+
+		if !anyMissing {
+			continue
+		}
+
+		msg := formatPreMatchReminder(matches, missingByMatch, botUsername)
+		markup := &tele.ReplyMarkup{
+			InlineKeyboard: [][]tele.InlineButton{
+				{{Text: "⚽️ Сделать ставку", URL: fmt.Sprintf("https://t.me/%s", botUsername)}},
+			},
+		}
+		chat := &tele.Chat{ID: g.TelegramChatID}
+		s.bot.Send(chat, msg, markup, tele.ModeMarkdown) //nolint:errcheck
+	}
+}
+
 // buildGroupStandingsMsg collects unique groups from tomorrow's matches
 // and builds a single standings message covering all of them.
 func (s *NotificationService) buildGroupStandingsMsg(ctx context.Context, matches []model.Match) string {
@@ -135,6 +185,35 @@ func (s *NotificationService) buildGroupStandingsMsg(ctx context.Context, matche
 }
 
 // ── formatters ────────────────────────────────────────────────────────────────
+
+func formatPreMatchReminder(matches []model.Match, missingByMatch [][]string, _ string) string {
+	var sb strings.Builder
+	sb.WriteString("⏰ *Скоро матчи! Успей поставить*\n\n")
+
+	for i, m := range matches {
+		localTime := m.MatchDate.In(almatyLoc).Format("15:04")
+		sb.WriteString(fmt.Sprintf("%s — %s  %s\n",
+			util.WithFlag(m.HomeTeam), util.WithFlag(m.AwayTeam), localTime))
+
+		missing := missingByMatch[i]
+		if len(missing) == 0 {
+			sb.WriteString("✅ Все поставили\n")
+		} else {
+			names := make([]string, len(missing))
+			for j, u := range missing {
+				if u == "" {
+					names[j] = "Аноним"
+				} else {
+					names[j] = "@" + u
+				}
+			}
+			sb.WriteString("⚠️ " + strings.Join(names, ", ") + "\n")
+		}
+		sb.WriteString("\n")
+	}
+
+	return strings.TrimRight(sb.String(), "\n")
+}
 
 func formatMatchResults(date time.Time, matches []model.Match) string {
 	var sb strings.Builder
@@ -191,8 +270,8 @@ func formatLeaderboard(groupName string, entries []model.GroupLeaderboardEntry) 
 		if name == "" {
 			name = "Аноним"
 		}
-		sb.WriteString(fmt.Sprintf("%s *%s* — %d очков (%d ставок)\n",
-			rank, name, e.TotalPoints, e.Predictions))
+		sb.WriteString(fmt.Sprintf("%s *%s* — %d %s (%d %s)\n",
+			rank, name, e.TotalPoints, pointWord(e.TotalPoints), e.Predictions, betWord(e.Predictions)))
 	}
 	return sb.String()
 }
@@ -213,6 +292,30 @@ func formatDate(t time.Time) string {
 	}
 	d := t.In(almatyLoc)
 	return fmt.Sprintf("%d %s", d.Day(), months[d.Month()-1])
+}
+
+func pointWord(n int) string {
+	switch {
+	case n < 0:
+		return "очков"
+	case n == 1:
+		return "очко"
+	case n >= 2 && n <= 4:
+		return "очка"
+	default:
+		return "очков"
+	}
+}
+
+func betWord(n int) string {
+	switch {
+	case n == 1:
+		return "ставка"
+	case n >= 2 && n <= 4:
+		return "ставки"
+	default:
+		return "ставок"
+	}
 }
 
 // groupLabel converts "GROUP_A" → "Группа A", leaves knockout stage names as-is.

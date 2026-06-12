@@ -35,18 +35,24 @@ func matchesWindow() (from, to time.Time) {
 	return
 }
 
-// todayWindow returns today's 24h range in Almaty time.
 // SetTestDate overrides today's date for testing. Pass nil to reset.
 var testDate *time.Time
 
 func SetTestDate(d *time.Time) { testDate = d }
 
-func todayWindow() (from, to time.Time) {
+// betsWindow returns yesterday before 18:00 Almaty, today after 18:00.
+// Before 18:00 shows yesterday's results; after 18:00 switches to today
+// so bets are hidden until matches start (building anticipation).
+func betsWindow() (from, to time.Time) {
 	now := time.Now().In(almatyLoc)
 	if testDate != nil {
 		now = testDate.In(almatyLoc)
 	}
-	from = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, almatyLoc).UTC()
+	offset := -1
+	if now.Hour() >= 18 {
+		offset = 0
+	}
+	from = time.Date(now.Year(), now.Month(), now.Day()+offset, 0, 0, 0, 0, almatyLoc).UTC()
 	to = from.Add(24 * time.Hour)
 	return
 }

@@ -119,7 +119,7 @@ func (h *Handler) openMatchBet(c tele.Context, idStr string) error {
 		return c.Send("Матч не найден.")
 	}
 
-	canEdit := time.Until(m.MatchDate) > 5*time.Minute
+	canEdit := time.Until(m.MatchDate) > 5*time.Minute && m.Status == model.MatchStatusTimed
 
 	userID, dbErr := h.users.GetIDByTelegramID(ctx, c.Sender().ID)
 	if dbErr == nil {
@@ -235,7 +235,15 @@ func (h *Handler) registerGroupMember(c tele.Context) error {
 		return err
 	}
 
-	userID, err := h.users.GetIDByTelegramID(ctx, c.Sender().ID)
+	sender := c.Sender()
+	if err := h.users.CreateIfNotExist(ctx, &model.User{
+		TelegramID: sender.ID,
+		Username:   sender.Username,
+	}); err != nil {
+		return err
+	}
+
+	userID, err := h.users.GetIDByTelegramID(ctx, sender.ID)
 	if err != nil {
 		return err
 	}

@@ -46,6 +46,9 @@ func (s *LeaderboardService) LiveLeaderboard(ctx context.Context, groupID int64)
 			continue
 		}
 		for _, pw := range preds {
+			if pw.Points != nil {
+				continue
+			}
 			pts := model.CalcPoints(&pw.Prediction, &m)
 			if pts == nil {
 				continue

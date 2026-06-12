@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 
+	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"halal-bet/internal/model"
@@ -15,6 +16,7 @@ type GroupRepository interface {
 	GetByUserID(ctx context.Context, userID int64) ([]model.Group, error)
 	AddMember(ctx context.Context, groupID, userID int64) error
 	Leaderboard(ctx context.Context, groupID int64) ([]model.GroupLeaderboardEntry, error)
+	GetMembersWithoutBet(ctx context.Context, groupID, matchID int64) ([]string, error)
 }
 
 type groupRepository struct {
@@ -158,4 +160,34 @@ func (r *groupRepository) Leaderboard(ctx context.Context, groupID int64) ([]mod
 		entries = append(entries, e)
 	}
 	return entries, rows.Err()
+}
+
+func (r *groupRepository) GetMembersWithoutBet(ctx context.Context, groupID, matchID int64) ([]string, error) {
+	query, args, err := psql.
+		Select("COALESCE(u.username, '')").
+		From("group_members gm").
+		Join("users u ON u.id = gm.user_id").
+		Where("gm.group_id = ?", groupID).
+		Where(sq.Expr("NOT EXISTS (SELECT 1 FROM predictions p WHERE p.user_id = u.id AND p.match_id = ?)", matchID)).
+		OrderBy("u.username ASC").
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var usernames []string
+	for rows.Next() {
+		var username string
+		if err := rows.Scan(&username); err != nil {
+			return nil, err
+		}
+		usernames = append(usernames, username)
+	}
+	return usernames, rows.Err()
 }
