@@ -29,6 +29,19 @@ type PredictionWithUser struct {
 	Username string
 }
 
+type PredictionWithMatch struct {
+	Prediction
+	HomeTeam        string
+	AwayTeam        string
+	MatchDate       time.Time
+	MatchStatus     MatchStatus
+	ActualHomeScore *int
+	ActualAwayScore *int
+	HadPenalty      *bool
+	HadRedCard      *bool
+	HadOwnGoal      *bool
+}
+
 // Outcome returns the predicted match outcome.
 func (p *Prediction) Outcome() Outcome {
 	return OutcomeOf(p.HomeScore, p.AwayScore)
