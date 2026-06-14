@@ -6,11 +6,11 @@ import (
 )
 
 type Config struct {
-	DatabaseURL        string
-	TelegramToken      string
-	FootballDataKey    string
-	SofascoreKey       string
-	Port               string
+	DatabaseURL     string
+	TelegramToken   string
+	FootballDataKey string
+	SofascoreKey    string
+	Port            string
 }
 
 func Load() (*Config, error) {

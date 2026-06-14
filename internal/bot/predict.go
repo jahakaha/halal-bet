@@ -24,6 +24,8 @@ func (h *Handler) OnCallback(c tele.Context) error {
 		return h.handleMatchSelect(c, data[2:])
 	case strings.HasPrefix(data, "eb|"):
 		return h.handleEditBet(c, data[3:])
+	case data == "noop":
+		return c.Respond()
 	case data == "back|m":
 		return h.handleBackToMatches(c)
 	case data == "back|grp":
@@ -193,7 +195,7 @@ func formatExistingBet(standingsBlock string, m *model.Match, p *model.Predictio
 		sb.WriteString(standingsBlock)
 		sb.WriteString("\n")
 	}
-	sb.WriteString("Твоя ставка: " + predSummary(p, m.HomeTeam, m.AwayTeam))
+	sb.WriteString("✅ Твоя ставка: " + predSummary(p, m.HomeTeam, m.AwayTeam))
 	if p.DoubleDown {
 		sb.WriteString(" 🔥")
 	}

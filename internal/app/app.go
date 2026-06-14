@@ -57,9 +57,14 @@ func Run() error {
 	groups := repository.NewGroupRepository(db)
 	tournament := repository.NewTournamentRepository(db)
 
+	adminTelegramID, err := users.GetTelegramIDByUsername(context.Background(), "jomirzak")
+	if err != nil {
+		log.Printf("warn: admin user not found in db: %v", err)
+	}
+
 	fdClient := footballdata.New(cfg.FootballDataKey)
 	ssClient := sofascore.New(cfg.SofascoreKey)
-	syncSvc := service.NewSyncService(fdClient, ssClient, matches, predictions)
+	syncSvc := service.NewSyncService(fdClient, ssClient, matches, predictions, b, adminTelegramID)
 	notifSvc := service.NewNotificationService(b, groups, matches)
 	lbSvc := service.NewLeaderboardService(groups, matches, predictions)
 	service.StartScheduler(notifSvc, syncSvc)

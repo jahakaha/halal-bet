@@ -20,17 +20,20 @@ func mustLoadLocation(name string) *time.Location {
 	return loc
 }
 
-// matchesWindow returns today's matches before 12:00 Almaty, tomorrow's after 12:00.
+// matchesWindow returns the window for /matches.
+// Before 12:00: today's calendar day (matches already running, e.g. 03:00, 07:00).
+// After 12:00: current game night window (today noon → tomorrow noon),
+// which covers tonight (22:00+) and tomorrow morning (00:00–11:00) together.
 func matchesWindow() (from, to time.Time) {
 	now := time.Now().In(almatyLoc)
 	if testDate != nil {
 		now = testDate.In(almatyLoc)
 	}
-	offset := 1
 	if now.Hour() < 12 {
-		offset = 0
+		from = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, almatyLoc).UTC()
+	} else {
+		from = time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, almatyLoc).UTC()
 	}
-	from = time.Date(now.Year(), now.Month(), now.Day()+offset, 0, 0, 0, 0, almatyLoc).UTC()
 	to = from.Add(24 * time.Hour)
 	return
 }
@@ -59,12 +62,93 @@ func betsWindow() (from, to time.Time) {
 	return
 }
 
-func matchesLabel() string {
-	now := time.Now().In(almatyLoc)
-	if now.Hour() < 12 {
-		return "Матчи сегодня:"
+func matchDateKey(t time.Time) string {
+	d := t.In(almatyLoc)
+	return fmt.Sprintf("%d-%02d-%02d", d.Year(), d.Month(), d.Day())
+}
+
+func matchDateLabel(t time.Time) string {
+	months := []string{
+		"января", "февраля", "марта", "апреля", "мая", "июня",
+		"июля", "августа", "сентября", "октября", "ноября", "декабря",
 	}
-	return "Матчи завтра:"
+	d := t.In(almatyLoc)
+	return fmt.Sprintf("%d %s", d.Day(), months[d.Month()-1])
+}
+
+// buildMatchRows builds inline keyboard rows for a list of matches,
+// inserting non-clickable date headers when matches span multiple calendar days.
+func buildMatchRows(matches []model.Match) (rows [][]tele.InlineButton, header string) {
+	seen := make(map[int64]bool)
+
+	type group struct {
+		date    time.Time
+		matches []model.Match
+	}
+	var groups []group
+	dateIdx := map[string]int{}
+
+	for _, m := range matches {
+		if seen[m.ID] {
+			continue
+		}
+		seen[m.ID] = true
+		key := matchDateKey(m.MatchDate)
+		idx, ok := dateIdx[key]
+		if !ok {
+			idx = len(groups)
+			d := m.MatchDate.In(almatyLoc)
+			groups = append(groups, group{
+				date: time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, almatyLoc),
+			})
+			dateIdx[key] = idx
+		}
+		groups[idx].matches = append(groups[idx].matches, m)
+	}
+
+	multiDay := len(groups) > 1
+	now := time.Now().In(almatyLoc)
+	today := fmt.Sprintf("%d-%02d-%02d", now.Year(), now.Month(), now.Day())
+	tomorrow := fmt.Sprintf("%d-%02d-%02d", now.Year(), now.Month(), now.Day()+1)
+
+	if !multiDay && len(groups) == 1 {
+		key := matchDateKey(groups[0].date)
+		switch key {
+		case today:
+			header = "Матчи сегодня:"
+		case tomorrow:
+			header = "Матчи завтра:"
+		default:
+			header = "Матчи " + matchDateLabel(groups[0].date) + ":"
+		}
+	} else {
+		header = "Матчи:"
+	}
+
+	for _, g := range groups {
+		if multiDay {
+			rows = append(rows, []tele.InlineButton{
+				{Text: "── " + matchDateLabel(g.date) + " ──", Data: "noop"},
+			})
+		}
+		for _, m := range g.matches {
+			localTime := m.MatchDate.In(almatyLoc).Format("15:04")
+			prefix := ""
+			switch m.Status {
+			case model.MatchStatusInPlay:
+				prefix = "🟢 "
+			case model.MatchStatusPaused:
+				prefix = "⏸ "
+			case model.MatchStatusFinished:
+				prefix = "✅ "
+			}
+			label := fmt.Sprintf("%s%s — %s  %s", prefix, m.HomeTeam, m.AwayTeam, localTime)
+			rows = append(rows, []tele.InlineButton{
+				{Text: label, Data: fmt.Sprintf("m|%d", m.ID)},
+			})
+		}
+	}
+	return
 }
 
 func (h *Handler) Matches(c tele.Context) error {
@@ -83,32 +167,8 @@ func (h *Handler) Matches(c tele.Context) error {
 		return c.Send("Матчей нет.")
 	}
 
-	seen := make(map[int64]bool)
-	rows := make([][]tele.InlineButton, 0, len(matches))
-	for _, m := range matches {
-		if seen[m.ID] {
-			continue
-		}
-		seen[m.ID] = true
-		localTime := m.MatchDate.In(almatyLoc).Format("15:04")
-		prefix := ""
-		switch m.Status {
-		case model.MatchStatusInPlay:
-			prefix = "🟢 "
-		case model.MatchStatusPaused:
-			prefix = "⏸ "
-		case model.MatchStatusFinished:
-			prefix = "✅ "
-		}
-		label := fmt.Sprintf("%s%s — %s  %s", prefix, m.HomeTeam, m.AwayTeam, localTime)
-		btn := tele.InlineButton{
-			Text: label,
-			Data: fmt.Sprintf("m|%d", m.ID),
-		}
-		rows = append(rows, []tele.InlineButton{btn})
-	}
-
-	return c.Send(matchesLabel(), &tele.ReplyMarkup{InlineKeyboard: rows})
+	rows, header := buildMatchRows(matches)
+	return c.Send(header, &tele.ReplyMarkup{InlineKeyboard: rows})
 }
 
 func (h *Handler) handleBackToMatches(c tele.Context) error {
@@ -119,39 +179,16 @@ func (h *Handler) handleBackToMatches(c tele.Context) error {
 		return c.Respond()
 	}
 
-	seen := make(map[int64]bool)
-	rows := make([][]tele.InlineButton, 0, len(matches))
-	for _, m := range matches {
-		if seen[m.ID] {
-			continue
-		}
-		seen[m.ID] = true
-		localTime := m.MatchDate.In(almatyLoc).Format("15:04")
-		prefix := ""
-		switch m.Status {
-		case model.MatchStatusInPlay:
-			prefix = "🟢 "
-		case model.MatchStatusPaused:
-			prefix = "⏸ "
-		case model.MatchStatusFinished:
-			prefix = "✅ "
-		}
-		label := fmt.Sprintf("%s%s — %s  %s", prefix, m.HomeTeam, m.AwayTeam, localTime)
-		rows = append(rows, []tele.InlineButton{{
-			Text: label,
-			Data: fmt.Sprintf("m|%d", m.ID),
-		}})
-	}
-
 	if err := c.Respond(); err != nil {
 		return err
 	}
 
-	if len(rows) == 0 {
+	if len(matches) == 0 {
 		_, err := c.Bot().Edit(c.Message(), "Матчей нет.")
 		return err
 	}
 
-	_, err = c.Bot().Edit(c.Message(), matchesLabel(), &tele.ReplyMarkup{InlineKeyboard: rows})
+	rows, header := buildMatchRows(matches)
+	_, err = c.Bot().Edit(c.Message(), header, &tele.ReplyMarkup{InlineKeyboard: rows})
 	return err
 }

@@ -21,12 +21,18 @@ import (
 	"halal-bet/internal/bot"
 	"halal-bet/internal/client/footballdata"
 	"halal-bet/internal/client/sofascore"
+	"halal-bet/internal/config"
 	"halal-bet/internal/repository"
 	"halal-bet/internal/service"
 )
 
 func main() {
-	sqlDB, err := sql.Open("pgx", os.Getenv("DATABASE_URL"))
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	sqlDB, err := sql.Open("pgx", cfg.DatabaseURL)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -35,14 +41,14 @@ func main() {
 	}
 	_ = sqlDB.Close()
 
-	db, err := pgxpool.New(context.Background(), os.Getenv("DATABASE_URL"))
+	db, err := pgxpool.New(context.Background(), cfg.DatabaseURL)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer db.Close()
 
 	b, err := tele.NewBot(tele.Settings{
-		Token:  os.Getenv("TELEGRAM_TOKEN"),
+		Token:  cfg.TelegramToken,
 		Poller: &tele.LongPoller{Timeout: 10},
 	})
 	if err != nil {
@@ -55,9 +61,14 @@ func main() {
 	groups := repository.NewGroupRepository(db)
 	tournament := repository.NewTournamentRepository(db)
 
-	fdClient := footballdata.New(os.Getenv("FOOTBALL_DATA_ORG_KEY"))
-	ssClient := sofascore.New(os.Getenv("SOFASCORE_RAPIDAPI_KEY"))
-	syncSvc := service.NewSyncService(fdClient, ssClient, matches, predictions)
+	adminTelegramID, err := users.GetTelegramIDByUsername(context.Background(), "jomirzak")
+	if err != nil {
+		log.Printf("warn: admin user not found in db: %v", err)
+	}
+
+	fdClient := footballdata.New(cfg.FootballDataKey)
+	ssClient := sofascore.New(cfg.SofascoreKey)
+	syncSvc := service.NewSyncService(fdClient, ssClient, matches, predictions, b, adminTelegramID)
 	notifSvc := service.NewNotificationService(b, groups, matches)
 	lbSvc := service.NewLeaderboardService(groups, matches, predictions)
 	service.StartScheduler(notifSvc, syncSvc)
