@@ -251,12 +251,25 @@ func nameMatch(a, b string) bool {
 	return len(shorter) >= 5 && strings.Contains(longer, shorter)
 }
 
+var nameAliases = map[string]string{
+	"türkiye":              "turkey",
+	"usa":                  "united states",
+	"bosnia & herzegovina": "bosnia-herzegovina",
+	"ir iran":              "iran",
+	"korea republic":       "south korea",
+	"côte d'ivoire":        "ivory coast",
+}
+
 func normalizeName(s string) string {
 	s = strings.ToLower(s)
 	for _, suffix := range []string{" fc", " cf", " sc", " ac", " afc", " fk"} {
 		s = strings.TrimSuffix(s, suffix)
 	}
-	return strings.TrimSpace(s)
+	s = strings.TrimSpace(s)
+	if alias, ok := nameAliases[s]; ok {
+		return alias
+	}
+	return s
 }
 
 
