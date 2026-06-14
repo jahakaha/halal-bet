@@ -10,46 +10,48 @@ import (
 
 	tele "gopkg.in/telebot.v3"
 
+	"halal-bet/internal/client/apifootball"
 	"halal-bet/internal/client/footballdata"
-	"halal-bet/internal/client/sofascore"
 	"halal-bet/internal/model"
 	"halal-bet/internal/repository"
 )
 
-type sofascoreClient interface {
-	GetWC2026Events(ctx context.Context, page int) ([]sofascore.Event, error)
-	GetIncidents(ctx context.Context, eventID int64) ([]sofascore.Incident, error)
+type apiFootballClient interface {
+	GetFixturesByDate(ctx context.Context, date time.Time) ([]apifootball.Fixture, error)
+	GetFixtureEvents(ctx context.Context, fixtureID int64) ([]apifootball.Event, error)
 }
 
 type SyncService struct {
 	client      *footballdata.Client
-	sofascore   sofascoreClient
+	apifootball apiFootballClient
 	matches     repository.MatchRepository
 	predictions repository.PredictionRepository
 
 	bot     *tele.Bot
 	adminID int64
 
-	eventCacheMu  sync.Mutex
-	eventCache    []sofascore.Event
-	eventCachedAt time.Time
+	// fixtureByDate caches API-Football fixtures per calendar date (UTC).
+	// Dates don't change so entries are never evicted.
+	fixtureCacheMu sync.Mutex
+	fixtureByDate  map[string][]apifootball.Fixture
 }
 
 func NewSyncService(
 	client *footballdata.Client,
-	sofascoreClient *sofascore.Client,
+	apiFootball *apifootball.Client,
 	matches repository.MatchRepository,
 	predictions repository.PredictionRepository,
 	bot *tele.Bot,
 	adminID int64,
 ) *SyncService {
 	return &SyncService{
-		client:      client,
-		sofascore:   sofascoreClient,
-		matches:     matches,
-		predictions: predictions,
-		bot:         bot,
-		adminID:     adminID,
+		client:        client,
+		apifootball:   apiFootball,
+		matches:       matches,
+		predictions:   predictions,
+		bot:           bot,
+		adminID:       adminID,
+		fixtureByDate: make(map[string][]apifootball.Fixture),
 	}
 }
 
@@ -62,33 +64,37 @@ func (s *SyncService) alert(msg string) {
 	s.bot.Send(&tele.Chat{ID: s.adminID}, "⚠️ HalalBet alert:\n"+msg) //nolint:errcheck
 }
 
-// cachedWC2026Events returns the Sofascore event list, refreshing at most once per 12 hours.
-// This caps GetWC2026Events API calls to ~2/day regardless of how often SyncMatchEvents runs.
-func (s *SyncService) cachedWC2026Events(ctx context.Context) ([]sofascore.Event, error) {
-	s.eventCacheMu.Lock()
-	defer s.eventCacheMu.Unlock()
+// wc2026Start is the first match day of WC 2026. Dates before this are skipped.
+var wc2026Start = time.Date(2026, 6, 11, 0, 0, 0, 0, time.UTC)
 
-	if time.Since(s.eventCachedAt) < 12*time.Hour && len(s.eventCache) > 0 {
-		return s.eventCache, nil
+// fixturesForDate returns World Cup fixtures for the given UTC date, cached forever
+// (match dates don't change). Uses GET /fixtures?date=YYYY-MM-DD which works on the free plan.
+// Returns nil (no error) for dates before WC2026 start — free plan returns 403 for old dates.
+func (s *SyncService) fixturesForDate(ctx context.Context, date time.Time) ([]apifootball.Fixture, error) {
+	if date.UTC().Before(wc2026Start) {
+		log.Printf("sync: skipping fixture lookup for pre-WC2026 date %s", date.UTC().Format("2006-01-02"))
+		return nil, nil
 	}
 
-	var all []sofascore.Event
-	for page := 0; page <= 10; page++ {
-		events, err := s.sofascore.GetWC2026Events(ctx, page)
-		if err != nil {
-			s.alert(fmt.Sprintf("sofascore GetWC2026Events page %d: %v", page, err))
-			return nil, fmt.Errorf("sofascore wc2026 events page %d: %w", page, err)
-		}
-		all = append(all, events...)
-		if len(events) == 0 {
-			break
-		}
+	key := date.UTC().Format("2006-01-02")
+
+	s.fixtureCacheMu.Lock()
+	defer s.fixtureCacheMu.Unlock()
+
+	if cached, ok := s.fixtureByDate[key]; ok {
+		return cached, nil
 	}
 
-	s.eventCache = all
-	s.eventCachedAt = time.Now()
-	log.Printf("sync: refreshed sofascore event cache: %d events", len(all))
-	return all, nil
+	fixtures, err := s.apifootball.GetFixturesByDate(ctx, date)
+	if err != nil {
+		// 403 = free plan restriction on old dates — log only, no alert
+		log.Printf("sync: apifootball GetFixturesByDate %s: %v", key, err)
+		return nil, nil
+	}
+
+	s.fixtureByDate[key] = fixtures
+	log.Printf("sync: cached %d apifootball fixtures for %s", len(fixtures), key)
+	return fixtures, nil
 }
 
 func (s *SyncService) SyncWC2026(ctx context.Context) (int, error) {
@@ -172,7 +178,7 @@ func (s *SyncService) FinalizeFinishedMatches(ctx context.Context) error {
 	return nil
 }
 
-// SyncMatchEvents fetches WC2026 events from Sofascore, links them to our
+// SyncMatchEvents fetches WC2026 fixture events from API-Football, links them to our
 // FINISHED matches that have risky bets, updates event flags, and recalculates points.
 func (s *SyncService) SyncMatchEvents(ctx context.Context) (int, error) {
 	pending, err := s.matches.GetFinishedForEventSync(ctx)
@@ -183,26 +189,27 @@ func (s *SyncService) SyncMatchEvents(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 
-	allEvents, err := s.cachedWC2026Events(ctx)
-	if err != nil {
-		return 0, err
-	}
-
 	updated := 0
 	for _, m := range pending {
-		event := findEvent(allEvents, m.HomeTeam, m.AwayTeam)
-		if event == nil {
+		fixtures, err := s.fixturesForDate(ctx, m.MatchDate)
+		if err != nil {
+			return updated, err
+		}
+
+		fixture := findFixture(fixtures, m.HomeTeam, m.AwayTeam)
+		if fixture == nil {
+			log.Printf("sync: no apifootball fixture found for %s–%s on %s", m.HomeTeam, m.AwayTeam, m.MatchDate.Format("2006-01-02"))
 			continue
 		}
 
-		incidents, err := s.sofascore.GetIncidents(ctx, event.ID)
+		events, err := s.apifootball.GetFixtureEvents(ctx, fixture.ID)
 		if err != nil {
-			s.alert(fmt.Sprintf("GetIncidents для матча %s–%s (event %d): %v", m.HomeTeam, m.AwayTeam, event.ID, err))
-			return updated, fmt.Errorf("sofascore incidents for event %d: %w", event.ID, err)
+			s.alert(fmt.Sprintf("GetFixtureEvents для матча %s–%s (fixture %d): %v", m.HomeTeam, m.AwayTeam, fixture.ID, err))
+			return updated, fmt.Errorf("apifootball events for fixture %d: %w", fixture.ID, err)
 		}
 
-		hadRed, hadPen, hadOwn := sofascore.ParseEvents(incidents)
-		if err := s.matches.UpdateEvents(ctx, m.ID, event.ID, hadRed, hadPen, hadOwn); err != nil {
+		hadRed, hadPen, hadOwn := apifootball.ParseEvents(events)
+		if err := s.matches.UpdateEvents(ctx, m.ID, fixture.ID, hadRed, hadPen, hadOwn); err != nil {
 			return updated, fmt.Errorf("update events for match %d: %w", m.ID, err)
 		}
 		if err := s.predictions.ResetPoints(ctx, m.ID); err != nil {
@@ -220,12 +227,11 @@ func (s *SyncService) SyncMatchEvents(ctx context.Context) (int, error) {
 	return updated, nil
 }
 
-
-// findEvent matches a Sofascore event to our match by normalizing team names.
-func findEvent(events []sofascore.Event, homeTeam, awayTeam string) *sofascore.Event {
-	for i, e := range events {
-		if nameMatch(e.HomeTeam.Name, homeTeam) && nameMatch(e.AwayTeam.Name, awayTeam) {
-			return &events[i]
+// findFixture matches an API-Football fixture to our match by normalizing team names.
+func findFixture(fixtures []apifootball.Fixture, homeTeam, awayTeam string) *apifootball.Fixture {
+	for i, f := range fixtures {
+		if nameMatch(f.HomeTeam, homeTeam) && nameMatch(f.AwayTeam, awayTeam) {
+			return &fixtures[i]
 		}
 	}
 	return nil
