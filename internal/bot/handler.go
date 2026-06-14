@@ -60,6 +60,7 @@ func (h *Handler) Register(b *tele.Bot) {
 	b.Handle("/bets", h.Bets)
 	b.Handle("/groups", h.Groups)
 	b.Handle("/predict", h.Predict)
+	b.Handle("/me", h.Me)
 
 	b.Handle(tele.OnText, h.OnText)
 	b.Handle(tele.OnCallback, h.OnCallback)
@@ -69,6 +70,7 @@ func (h *Handler) Register(b *tele.Bot) {
 		{Text: "matches", Description: "Матчи сегодня"},
 		{Text: "bets", Description: "Ставки дня"},
 		{Text: "leaderboard", Description: "Таблица тотализатора"},
+		{Text: "me", Description: "Моя история ставок"},
 		{Text: "groups", Description: "Таблица групп ЧМ26"},
 		{Text: "predict", Description: "Предсказания на ЧМ26"},
 		{Text: "description", Description: "Правила игры"},

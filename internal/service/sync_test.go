@@ -95,6 +95,9 @@ func (r *mockPredictionRepo) UpdatePoints(_ context.Context, _ int64, points map
 	return nil
 }
 func (r *mockPredictionRepo) ResetPoints(_ context.Context, _ int64) error { return nil }
+func (r *mockPredictionRepo) GetHistoryByUser(_ context.Context, _ int64) ([]model.PredictionWithMatch, error) {
+	return nil, nil
+}
 
 func intPtr(i int) *int { return &i }
 

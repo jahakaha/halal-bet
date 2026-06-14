@@ -17,6 +17,8 @@ func (h *Handler) OnCallback(c tele.Context) error {
 	switch {
 	case strings.HasPrefix(data, "tp|"):
 		return h.handleTournamentBet(c, data[3:])
+	case strings.HasPrefix(data, "me|"):
+		return h.handleMeNav(c)
 	case strings.HasPrefix(data, "grp|"):
 		return h.handleGroupStandings(c, data[4:])
 	case strings.HasPrefix(data, "m|"):

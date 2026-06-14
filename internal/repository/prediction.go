@@ -16,6 +16,7 @@ type PredictionRepository interface {
 	GetByMatch(ctx context.Context, matchID int64) ([]model.Prediction, error)
 	GetByMatchWithUsers(ctx context.Context, matchID int64) ([]model.PredictionWithUser, error)
 	GetByMatchWithUsersInGroup(ctx context.Context, matchID, groupID int64) ([]model.PredictionWithUser, error)
+	GetHistoryByUser(ctx context.Context, userID int64) ([]model.PredictionWithMatch, error)
 	CountDoubleDowns(ctx context.Context, userID, excludeMatchID int64) (int, error)
 	UpdatePoints(ctx context.Context, matchID int64, points map[int64]int) error
 	ResetPoints(ctx context.Context, matchID int64) error
@@ -166,6 +167,49 @@ func (r *predictionRepository) GetByMatchWithUsersInGroup(ctx context.Context, m
 			&pw.ID, &pw.UserID, &pw.MatchID, &pw.BetType, &pw.HomeScore, &pw.AwayScore,
 			&pw.DoubleDown, &pw.BetPenalty, &pw.BetRedCard, &pw.BetOwnGoal, &pw.Points,
 			&pw.CreatedAt, &pw.UpdatedAt, &pw.Username,
+		); err != nil {
+			return nil, err
+		}
+		result = append(result, pw)
+	}
+	return result, rows.Err()
+}
+
+func (r *predictionRepository) GetHistoryByUser(ctx context.Context, userID int64) ([]model.PredictionWithMatch, error) {
+	sql, args, err := psql.
+		Select(
+			"p.id", "p.user_id", "p.match_id", "p.bet_type", "p.home_score", "p.away_score",
+			"p.double_down", "p.bet_penalty", "p.bet_red_card", "p.bet_own_goal", "p.points",
+			"p.created_at", "p.updated_at",
+			"m.home_team", "m.away_team", "m.match_date", "m.status",
+			"m.home_score", "m.away_score",
+			"m.had_penalty", "m.had_red_card", "m.had_own_goal",
+		).
+		From("predictions p").
+		Join("wc2026_matches m ON m.id = p.match_id").
+		Where("p.user_id = ?", userID).
+		OrderBy("m.match_date ASC").
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := r.db.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []model.PredictionWithMatch
+	for rows.Next() {
+		var pw model.PredictionWithMatch
+		if err := rows.Scan(
+			&pw.ID, &pw.UserID, &pw.MatchID, &pw.BetType, &pw.HomeScore, &pw.AwayScore,
+			&pw.DoubleDown, &pw.BetPenalty, &pw.BetRedCard, &pw.BetOwnGoal, &pw.Points,
+			&pw.CreatedAt, &pw.UpdatedAt,
+			&pw.HomeTeam, &pw.AwayTeam, &pw.MatchDate, &pw.MatchStatus,
+			&pw.ActualHomeScore, &pw.ActualAwayScore,
+			&pw.HadPenalty, &pw.HadRedCard, &pw.HadOwnGoal,
 		); err != nil {
 			return nil, err
 		}
