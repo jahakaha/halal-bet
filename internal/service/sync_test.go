@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"halal-bet/internal/client/sofascore"
 	"halal-bet/internal/model"
 )
 
@@ -207,6 +208,79 @@ func TestFinalizeFinishedMatches_DoubleDown(t *testing.T) {
 	if pts := predRepo.updated[30]; pts != 10 {
 		t.Errorf("DD exact should give 10 pts, got %d", pts)
 	}
+}
+
+// mockSofascore counts GetWC2026Events calls to verify caching behaviour.
+type mockSofascore struct {
+	eventsCallCount int
+	events          []sofascore.Event
+}
+
+func (m *mockSofascore) GetWC2026Events(_ context.Context, _ int) ([]sofascore.Event, error) {
+	m.eventsCallCount++
+	// Return empty slice on second page so pagination stops.
+	if m.eventsCallCount > 1 {
+		return nil, nil
+	}
+	return m.events, nil
+}
+
+func (m *mockSofascore) GetIncidents(_ context.Context, _ int64) ([]sofascore.Incident, error) {
+	return nil, nil
+}
+
+func TestCachedWC2026Events_CallsAPIOnce(t *testing.T) {
+	mock := &mockSofascore{
+		events: []sofascore.Event{{ID: 1}},
+	}
+	svc := &SyncService{sofascore: mock}
+
+	ctx := context.Background()
+
+	// Call 5 times — simulating scheduler running every 2 min.
+	for i := 0; i < 5; i++ {
+		events, err := svc.cachedWC2026Events(ctx)
+		if err != nil {
+			t.Fatalf("call %d: unexpected error: %v", i+1, err)
+		}
+		if len(events) == 0 {
+			t.Fatalf("call %d: expected events, got none", i+1)
+		}
+	}
+
+	// GetWC2026Events must be called only twice: page 0 (data) + page 1 (empty, stops loop).
+	// NOT 5×2=10 times.
+	if mock.eventsCallCount != 2 {
+		t.Errorf("GetWC2026Events called %d times, want 2 (one cache fill)", mock.eventsCallCount)
+	}
+}
+
+func TestCachedWC2026Events_RefreshesAfter12Hours(t *testing.T) {
+	mock := &mockSofascore{
+		events: []sofascore.Event{{ID: 1}},
+	}
+	svc := &SyncService{sofascore: mock}
+	ctx := context.Background()
+
+	// First fill.
+	if _, err := svc.cachedWC2026Events(ctx); err != nil {
+		t.Fatal(err)
+	}
+	firstCount := mock.eventsCallCount
+
+	// Expire the cache manually.
+	svc.eventCachedAt = time.Now().Add(-13 * time.Hour)
+	mock.eventsCallCount = 0
+
+	// Second fill after expiry.
+	if _, err := svc.cachedWC2026Events(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	if mock.eventsCallCount == 0 {
+		t.Error("expected API to be called again after cache expiry, but it was not")
+	}
+	_ = firstCount
 }
 
 func TestQuietWindowSleep(t *testing.T) {

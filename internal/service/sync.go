@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"time"
+
+	tele "gopkg.in/telebot.v3"
 
 	"halal-bet/internal/client/footballdata"
 	"halal-bet/internal/client/sofascore"
@@ -13,11 +16,23 @@ import (
 	"halal-bet/internal/repository"
 )
 
+type sofascoreClient interface {
+	GetWC2026Events(ctx context.Context, page int) ([]sofascore.Event, error)
+	GetIncidents(ctx context.Context, eventID int64) ([]sofascore.Incident, error)
+}
+
 type SyncService struct {
 	client      *footballdata.Client
-	sofascore   *sofascore.Client
+	sofascore   sofascoreClient
 	matches     repository.MatchRepository
 	predictions repository.PredictionRepository
+
+	bot     *tele.Bot
+	adminID int64
+
+	eventCacheMu  sync.Mutex
+	eventCache    []sofascore.Event
+	eventCachedAt time.Time
 }
 
 func NewSyncService(
@@ -25,13 +40,55 @@ func NewSyncService(
 	sofascoreClient *sofascore.Client,
 	matches repository.MatchRepository,
 	predictions repository.PredictionRepository,
+	bot *tele.Bot,
+	adminID int64,
 ) *SyncService {
 	return &SyncService{
 		client:      client,
 		sofascore:   sofascoreClient,
 		matches:     matches,
 		predictions: predictions,
+		bot:         bot,
+		adminID:     adminID,
 	}
+}
+
+// alert sends a Telegram DM to the admin and also logs the message.
+func (s *SyncService) alert(msg string) {
+	log.Printf("ALERT: %s", msg)
+	if s.bot == nil || s.adminID == 0 {
+		return
+	}
+	s.bot.Send(&tele.Chat{ID: s.adminID}, "⚠️ HalalBet alert:\n"+msg) //nolint:errcheck
+}
+
+// cachedWC2026Events returns the Sofascore event list, refreshing at most once per 12 hours.
+// This caps GetWC2026Events API calls to ~2/day regardless of how often SyncMatchEvents runs.
+func (s *SyncService) cachedWC2026Events(ctx context.Context) ([]sofascore.Event, error) {
+	s.eventCacheMu.Lock()
+	defer s.eventCacheMu.Unlock()
+
+	if time.Since(s.eventCachedAt) < 12*time.Hour && len(s.eventCache) > 0 {
+		return s.eventCache, nil
+	}
+
+	var all []sofascore.Event
+	for page := 0; page <= 10; page++ {
+		events, err := s.sofascore.GetWC2026Events(ctx, page)
+		if err != nil {
+			s.alert(fmt.Sprintf("sofascore GetWC2026Events page %d: %v", page, err))
+			return nil, fmt.Errorf("sofascore wc2026 events page %d: %w", page, err)
+		}
+		all = append(all, events...)
+		if len(events) == 0 {
+			break
+		}
+	}
+
+	s.eventCache = all
+	s.eventCachedAt = time.Now()
+	log.Printf("sync: refreshed sofascore event cache: %d events", len(all))
+	return all, nil
 }
 
 func (s *SyncService) SyncWC2026(ctx context.Context) (int, error) {
@@ -126,16 +183,9 @@ func (s *SyncService) SyncMatchEvents(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 
-	var allEvents []sofascore.Event
-	for page := 0; page <= 10; page++ {
-		events, err := s.sofascore.GetWC2026Events(ctx, page)
-		if err != nil {
-			return 0, fmt.Errorf("sofascore wc2026 events page %d: %w", page, err)
-		}
-		allEvents = append(allEvents, events...)
-		if len(events) == 0 {
-			break
-		}
+	allEvents, err := s.cachedWC2026Events(ctx)
+	if err != nil {
+		return 0, err
 	}
 
 	updated := 0
@@ -147,6 +197,7 @@ func (s *SyncService) SyncMatchEvents(ctx context.Context) (int, error) {
 
 		incidents, err := s.sofascore.GetIncidents(ctx, event.ID)
 		if err != nil {
+			s.alert(fmt.Sprintf("GetIncidents для матча %s–%s (event %d): %v", m.HomeTeam, m.AwayTeam, event.ID, err))
 			return updated, fmt.Errorf("sofascore incidents for event %d: %w", event.ID, err)
 		}
 

@@ -15,6 +15,7 @@ type UserRepository interface {
 	CreateIfNotExist(ctx context.Context, user *model.User) error
 	GetIDByTelegramID(ctx context.Context, telegramID int64) (int64, error)
 	GetByTelegramID(ctx context.Context, telegramID int64) (*model.User, error)
+	GetTelegramIDByUsername(ctx context.Context, username string) (int64, error)
 }
 
 type userRepository struct {
@@ -54,6 +55,20 @@ func (r *userRepository) GetByTelegramID(ctx context.Context, telegramID int64) 
 		return nil, err
 	}
 	return &u, nil
+}
+
+func (r *userRepository) GetTelegramIDByUsername(ctx context.Context, username string) (int64, error) {
+	sql, args, err := psql.
+		Select("telegram_id").
+		From("users").
+		Where("username = ?", username).
+		ToSql()
+	if err != nil {
+		return 0, err
+	}
+	var id int64
+	err = r.db.QueryRow(ctx, sql, args...).Scan(&id)
+	return id, err
 }
 
 func (r *userRepository) CreateIfNotExist(ctx context.Context, user *model.User) error {

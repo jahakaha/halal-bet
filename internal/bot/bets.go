@@ -97,8 +97,10 @@ func formatMatchBets(ctx context.Context, h *Handler, m model.Match, groupID int
 		if extras := specialExtras(&p.Prediction); extras != "" {
 			line += " " + extras
 		}
-		if p.Points != nil {
-			line += fmt.Sprintf(" → <b>%+d</b>", *p.Points)
+		// Recalculate live so special-bet points (penalty/red card/own goal)
+		// are reflected even if synced after the stored points were written.
+		if pts := model.CalcPoints(&p.Prediction, &m); pts != nil {
+			line += fmt.Sprintf(" → <b>%+d</b>", *pts)
 		}
 		sb.WriteString(line + "\n")
 	}

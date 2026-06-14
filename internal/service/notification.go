@@ -33,14 +33,16 @@ func NewNotificationService(bot *tele.Bot, groups repository.GroupRepository, ma
 	return &NotificationService{bot: bot, groups: groups, matches: matches}
 }
 
-// SendDailyResults sends two messages at 13:00 Almaty:
-//  1. Yesterday's match results (scores)
+// SendDailyResults sends two messages at 12:00 Almaty:
+//  1. Last game night's match results (scores)
 //  2. Totalizator leaderboard per chat group
 func (s *NotificationService) SendDailyResults(ctx context.Context, now time.Time) {
 	now = now.In(almatyLoc)
+	// Game night runs noon→noon. Previous game night = yesterday noon → today noon.
+	noon := time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, almatyLoc)
+	from := noon.AddDate(0, 0, -1)
+	to := noon
 	yesterday := now.AddDate(0, 0, -1)
-	from := time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 0, 0, 0, 0, almatyLoc).UTC()
-	to := from.Add(24 * time.Hour)
 
 	finished, err := s.matches.GetFinishedInWindow(ctx, from, to)
 	if err != nil {

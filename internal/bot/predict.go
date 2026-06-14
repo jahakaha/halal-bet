@@ -12,7 +12,6 @@ import (
 	"halal-bet/internal/model"
 )
 
-
 func (h *Handler) OnCallback(c tele.Context) error {
 	data := c.Data()
 	switch {
@@ -24,6 +23,8 @@ func (h *Handler) OnCallback(c tele.Context) error {
 		return h.handleMatchSelect(c, data[2:])
 	case strings.HasPrefix(data, "eb|"):
 		return h.handleEditBet(c, data[3:])
+	case data == "noop":
+		return c.Respond()
 	case data == "back|m":
 		return h.handleBackToMatches(c)
 	case data == "back|grp":
@@ -193,7 +194,7 @@ func formatExistingBet(standingsBlock string, m *model.Match, p *model.Predictio
 		sb.WriteString(standingsBlock)
 		sb.WriteString("\n")
 	}
-	sb.WriteString("Твоя ставка: " + predSummary(p, m.HomeTeam, m.AwayTeam))
+	sb.WriteString("✅ Твоя ставка: " + predSummary(p, m.HomeTeam, m.AwayTeam))
 	if p.DoubleDown {
 		sb.WriteString(" 🔥")
 	}
@@ -228,7 +229,6 @@ func backToMatchesKeyboard() *tele.ReplyMarkup {
 	}
 }
 
-
 func buildMatchBetMsg(ctx context.Context, h *Handler, m *model.Match) string {
 	header := fmt.Sprintf("*%s — %s*\n\n", withFlag(m.HomeTeam), withFlag(m.AwayTeam))
 	prompt := "Введи точный счёт\nПример: 2:1"
@@ -259,7 +259,6 @@ func formatGroupStandings(groupName string, entries []model.StandingEntry) strin
 	return sb.String()
 }
 
-
 func (h *Handler) parseExactScore(c tele.Context, st *predictionState, text string) error {
 	parts := strings.Split(text, ":")
 	if len(parts) != 2 {
@@ -275,13 +274,11 @@ func (h *Handler) parseExactScore(c tele.Context, st *predictionState, text stri
 	return h.showPredictForm(c, st)
 }
 
-
 func (h *Handler) editPrompt(c tele.Context, st *predictionState, text string) error {
 	editable := &tele.Message{ID: st.msgID, Chat: c.Chat()}
 	_, err := c.Bot().Edit(editable, text, tele.ModeMarkdown)
 	return err
 }
-
 
 func (h *Handler) showPredictForm(c tele.Context, st *predictionState) error {
 	ctx := context.Background()
@@ -295,7 +292,6 @@ func (h *Handler) showPredictForm(c tele.Context, st *predictionState) error {
 	_, err = c.Bot().Edit(editable, buildPredictMsg(st), buildPredictKeyboard(st), tele.ModeMarkdown)
 	return err
 }
-
 
 func (h *Handler) handleSpecialToggle(c tele.Context, bet string) error {
 	st, ok := h.store.get(c.Sender().ID)
@@ -415,9 +411,18 @@ func buildPredictMsg(st *predictionState) string {
 	if st.ddRemaining <= 0 {
 		ddLine = "Double Down исчерпан"
 	}
+	specialLine := ""
+	switch st.special {
+	case specialPenalty:
+		specialLine = "\n🥅 Пенальти выбран"
+	case specialRedCard:
+		specialLine = "\n🟥 Красная карта выбрана"
+	case specialOwnGoal:
+		specialLine = "\n🤦 Автогол выбран"
+	}
 	return fmt.Sprintf(
-		"*%s — %s*\nПрогноз: %s\n%s",
-		withFlag(st.homeTeam), withFlag(st.awayTeam), betSummary(st), ddLine,
+		"*%s — %s*\nПрогноз: %s%s\n%s",
+		withFlag(st.homeTeam), withFlag(st.awayTeam), betSummary(st), specialLine, ddLine,
 	)
 }
 
@@ -425,23 +430,14 @@ func betSummary(st *predictionState) string {
 	return fmt.Sprintf("%d:%d", st.homeScore, st.awayScore)
 }
 
-
 func buildPredictKeyboard(st *predictionState) *tele.ReplyMarkup {
-	check := func(s specialBet) string {
-		if st.special == s {
-			return "✓ "
-		}
-		return ""
-	}
-
-	ddText := "🔥Double Down x2"
+	ddText := fmt.Sprintf("🔥 Double Down x2  (%d/%d)", st.ddRemaining, model.DoubleDownLimit)
 	if st.doubleDown {
-		ddText = "✓ Double Down x2"
+		ddText = fmt.Sprintf("✅ Double Down x2  (%d/%d)", st.ddRemaining, model.DoubleDownLimit)
 	}
 
 	rows := [][]tele.InlineButton{}
 
-	// DD — отдельная строка, выше спец ставок
 	if st.ddRemaining > 0 || st.doubleDown {
 		rows = append(rows, []tele.InlineButton{
 			{Text: ddText, Data: "dd"},
@@ -449,10 +445,10 @@ func buildPredictKeyboard(st *predictionState) *tele.ReplyMarkup {
 	}
 
 	rows = append(rows,
-		[]tele.InlineButton{{Text: check(specialPenalty) + "🥅 Пенальти +2/−1", Data: "s|penalty"}},
-		[]tele.InlineButton{{Text: check(specialRedCard) + "🟥 Красная +3/−2", Data: "s|red_card"}},
-		[]tele.InlineButton{{Text: check(specialOwnGoal) + "🤦 Автогол +5/−3", Data: "s|own_goal"}},
-		[]tele.InlineButton{{Text: "Сохранить", Data: "sv"}, {Text: "← Матчи", Data: "back|m"}},
+		[]tele.InlineButton{{Text: "🥅 Пенальти +2/−1", Data: "s|penalty"}},
+		[]tele.InlineButton{{Text: "🟥 Красная +3/−2", Data: "s|red_card"}},
+		[]tele.InlineButton{{Text: "🤦 Автогол +5/−3", Data: "s|own_goal"}},
+		[]tele.InlineButton{{Text: "💾 Сохранить", Data: "sv"}, {Text: "← Матчи", Data: "back|m"}},
 	)
 
 	return &tele.ReplyMarkup{InlineKeyboard: rows}
