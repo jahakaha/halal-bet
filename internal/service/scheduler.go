@@ -28,6 +28,16 @@ func StartScheduler(notif *NotificationService, sync *SyncService) {
 	})
 	go runLiveSync(sync)
 	go runPreMatchNotify(notif)
+
+	// Backfill on startup: sync events for all finished matches that still have pending risky bets.
+	go func() {
+		ctx := context.Background()
+		if n, err := sync.SyncMatchEvents(ctx); err != nil {
+			log.Printf("startup: events backfill: %v", err)
+		} else if n > 0 {
+			log.Printf("startup: backfilled events for %d matches", n)
+		}
+	}()
 }
 
 func syncAll(ctx context.Context, sync *SyncService) {

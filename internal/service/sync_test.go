@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"halal-bet/internal/client/sofascore"
+	"halal-bet/internal/client/apifootball"
 	"halal-bet/internal/model"
 )
 
@@ -210,77 +210,66 @@ func TestFinalizeFinishedMatches_DoubleDown(t *testing.T) {
 	}
 }
 
-// mockSofascore counts GetWC2026Events calls to verify caching behaviour.
-type mockSofascore struct {
-	eventsCallCount int
-	events          []sofascore.Event
+// mockApiFootball counts GetFixturesByDate calls to verify caching behaviour.
+type mockApiFootball struct {
+	callCount int
+	fixtures  []apifootball.Fixture
 }
 
-func (m *mockSofascore) GetWC2026Events(_ context.Context, _ int) ([]sofascore.Event, error) {
-	m.eventsCallCount++
-	// Return empty slice on second page so pagination stops.
-	if m.eventsCallCount > 1 {
-		return nil, nil
-	}
-	return m.events, nil
+func (m *mockApiFootball) GetFixturesByDate(_ context.Context, _ time.Time) ([]apifootball.Fixture, error) {
+	m.callCount++
+	return m.fixtures, nil
 }
 
-func (m *mockSofascore) GetIncidents(_ context.Context, _ int64) ([]sofascore.Incident, error) {
+func (m *mockApiFootball) GetFixtureEvents(_ context.Context, _ int64) ([]apifootball.Event, error) {
 	return nil, nil
 }
 
-func TestCachedWC2026Events_CallsAPIOnce(t *testing.T) {
-	mock := &mockSofascore{
-		events: []sofascore.Event{{ID: 1}},
+func TestFixturesForDate_CachesPerDate(t *testing.T) {
+	mock := &mockApiFootball{
+		fixtures: []apifootball.Fixture{{ID: 1, HomeTeam: "Germany", AwayTeam: "Curaçao"}},
 	}
-	svc := &SyncService{sofascore: mock}
+	svc := &SyncService{apifootball: mock, fixtureByDate: make(map[string][]apifootball.Fixture)}
 
 	ctx := context.Background()
+	date := time.Date(2026, 6, 14, 0, 0, 0, 0, time.UTC)
 
-	// Call 5 times — simulating scheduler running every 2 min.
+	// Call 5 times for the same date — API must be called only once.
 	for i := 0; i < 5; i++ {
-		events, err := svc.cachedWC2026Events(ctx)
+		fixtures, err := svc.fixturesForDate(ctx, date)
 		if err != nil {
 			t.Fatalf("call %d: unexpected error: %v", i+1, err)
 		}
-		if len(events) == 0 {
-			t.Fatalf("call %d: expected events, got none", i+1)
+		if len(fixtures) == 0 {
+			t.Fatalf("call %d: expected fixtures, got none", i+1)
 		}
 	}
 
-	// GetWC2026Events must be called only twice: page 0 (data) + page 1 (empty, stops loop).
-	// NOT 5×2=10 times.
-	if mock.eventsCallCount != 2 {
-		t.Errorf("GetWC2026Events called %d times, want 2 (one cache fill)", mock.eventsCallCount)
+	if mock.callCount != 1 {
+		t.Errorf("GetFixturesByDate called %d times for same date, want 1", mock.callCount)
 	}
 }
 
-func TestCachedWC2026Events_RefreshesAfter12Hours(t *testing.T) {
-	mock := &mockSofascore{
-		events: []sofascore.Event{{ID: 1}},
+func TestFixturesForDate_SeparateCachePerDate(t *testing.T) {
+	mock := &mockApiFootball{
+		fixtures: []apifootball.Fixture{{ID: 1}},
 	}
-	svc := &SyncService{sofascore: mock}
+	svc := &SyncService{apifootball: mock, fixtureByDate: make(map[string][]apifootball.Fixture)}
 	ctx := context.Background()
 
-	// First fill.
-	if _, err := svc.cachedWC2026Events(ctx); err != nil {
+	date1 := time.Date(2026, 6, 14, 0, 0, 0, 0, time.UTC)
+	date2 := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
+
+	if _, err := svc.fixturesForDate(ctx, date1); err != nil {
 		t.Fatal(err)
 	}
-	firstCount := mock.eventsCallCount
-
-	// Expire the cache manually.
-	svc.eventCachedAt = time.Now().Add(-13 * time.Hour)
-	mock.eventsCallCount = 0
-
-	// Second fill after expiry.
-	if _, err := svc.cachedWC2026Events(ctx); err != nil {
+	if _, err := svc.fixturesForDate(ctx, date2); err != nil {
 		t.Fatal(err)
 	}
 
-	if mock.eventsCallCount == 0 {
-		t.Error("expected API to be called again after cache expiry, but it was not")
+	if mock.callCount != 2 {
+		t.Errorf("expected 2 API calls for 2 different dates, got %d", mock.callCount)
 	}
-	_ = firstCount
 }
 
 func TestQuietWindowSleep(t *testing.T) {

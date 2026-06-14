@@ -9,7 +9,7 @@ type Config struct {
 	DatabaseURL     string
 	TelegramToken   string
 	FootballDataKey string
-	SofascoreKey    string
+	ApiFootballKey  string
 	Port            string
 }
 
@@ -18,7 +18,7 @@ func Load() (*Config, error) {
 		DatabaseURL:     os.Getenv("DATABASE_URL"),
 		TelegramToken:   os.Getenv("TELEGRAM_TOKEN"),
 		FootballDataKey: os.Getenv("FOOTBALL_DATA_ORG_KEY"),
-		SofascoreKey:    os.Getenv("SOFASCORE_RAPIDAPI_KEY"),
+		ApiFootballKey:  os.Getenv("API_FOOTBALL_KEY"),
 		Port:            os.Getenv("PORT"),
 	}
 

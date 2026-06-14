@@ -19,8 +19,8 @@ import (
 	tele "gopkg.in/telebot.v3"
 
 	"halal-bet/internal/bot"
+	"halal-bet/internal/client/apifootball"
 	"halal-bet/internal/client/footballdata"
-	"halal-bet/internal/client/sofascore"
 	"halal-bet/internal/config"
 	"halal-bet/internal/repository"
 	"halal-bet/internal/service"
@@ -67,8 +67,8 @@ func main() {
 	}
 
 	fdClient := footballdata.New(cfg.FootballDataKey)
-	ssClient := sofascore.New(cfg.SofascoreKey)
-	syncSvc := service.NewSyncService(fdClient, ssClient, matches, predictions, b, adminTelegramID)
+	afClient := apifootball.New(cfg.ApiFootballKey)
+	syncSvc := service.NewSyncService(fdClient, afClient, matches, predictions, b, adminTelegramID)
 	notifSvc := service.NewNotificationService(b, groups, matches)
 	lbSvc := service.NewLeaderboardService(groups, matches, predictions)
 	service.StartScheduler(notifSvc, syncSvc)
