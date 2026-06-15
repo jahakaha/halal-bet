@@ -103,7 +103,7 @@ func (r *matchRepository) GetByID(ctx context.Context, id int64) (*model.Match, 
 
 func (r *matchRepository) GetUpcoming(ctx context.Context, from, to time.Time) ([]model.Match, error) {
 	sql, args, err := psql.
-		Select("id", "external_id", "home_team", "away_team", "match_date", "status", "home_score", "away_score", "stage", "group_name", "matchday", "updated_at").
+		Select("id", "external_id", "home_team", "away_team", "match_date", "status", "home_score", "away_score", "stage", "group_name", "matchday", "had_red_card", "had_penalty", "had_own_goal", "updated_at").
 		From("wc2026_matches").
 		Where(sq.GtOrEq{"match_date": from.UTC()}).
 		Where(sq.Lt{"match_date": to.UTC()}).
@@ -125,7 +125,8 @@ func (r *matchRepository) GetUpcoming(ctx context.Context, from, to time.Time) (
 		if err := rows.Scan(
 			&m.ID, &m.ExternalID, &m.HomeTeam, &m.AwayTeam,
 			&m.MatchDate, &m.Status, &m.HomeScore, &m.AwayScore,
-			&m.Stage, &m.Group, &m.Matchday, &m.UpdatedAt,
+			&m.Stage, &m.Group, &m.Matchday,
+			&m.HadRedCard, &m.HadPenalty, &m.HadOwnGoal, &m.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
