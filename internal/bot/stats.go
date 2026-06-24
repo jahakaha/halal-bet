@@ -60,6 +60,14 @@ func buildStatsMsg(stats []model.UserStats) string {
 		if s.OwnGoalBets > 0 {
 			risky = append(risky, fmt.Sprintf("🤦 %d/%d", s.OwnGoalHits, s.OwnGoalBets))
 		}
+		if s.DoubleDowns > 0 {
+			fails := s.DoubleDowns - s.DoubleDownHits
+			dd := fmt.Sprintf("🔥 %d/%d", s.DoubleDownHits, s.DoubleDowns)
+			if fails > 0 {
+				dd += fmt.Sprintf(" 💀%d", fails)
+			}
+			risky = append(risky, dd)
+		}
 		if len(risky) > 0 {
 			sb.WriteString(strings.Join(risky, "  ") + "\n")
 		}
