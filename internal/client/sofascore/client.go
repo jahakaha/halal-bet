@@ -157,6 +157,8 @@ func ParseEvents(incidents []Incident) (hadRedCard, hadPenalty, hadOwnGoal bool)
 			if inc.From == "owngoal" {
 				hadOwnGoal = true
 			}
+		case "missedPenalty":
+			hadPenalty = true
 		}
 	}
 	return
