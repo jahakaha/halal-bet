@@ -213,7 +213,9 @@ func (r *groupRepository) GetGroupStats(ctx context.Context, groupID int64) ([]m
 		COUNT(*) FILTER (WHERE p.bet_red_card AND m.had_red_card = true)::int AS redcard_hits,
 		COUNT(*) FILTER (WHERE p.bet_own_goal)::int AS owngoal_bets,
 		COUNT(*) FILTER (WHERE p.bet_own_goal AND m.had_own_goal = true)::int AS owngoal_hits,
-		COALESCE(SUM(p.points), 0) AS total_points
+		COALESCE(SUM(p.points), 0) AS total_points,
+		COUNT(*) FILTER (WHERE p.double_down)::int AS double_downs,
+		COUNT(*) FILTER (WHERE p.double_down AND p.points > 0)::int AS double_down_hits
 	FROM predictions p
 	JOIN users u ON u.id = p.user_id
 	JOIN wc2026_matches m ON m.id = p.match_id
@@ -238,6 +240,7 @@ func (r *groupRepository) GetGroupStats(ctx context.Context, groupID int64) ([]m
 			&s.RedCardBets, &s.RedCardHits,
 			&s.OwnGoalBets, &s.OwnGoalHits,
 			&s.TotalPoints,
+			&s.DoubleDowns, &s.DoubleDownHits,
 		); err != nil {
 			return nil, err
 		}

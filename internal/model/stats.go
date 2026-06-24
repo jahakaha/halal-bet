@@ -10,9 +10,11 @@ type UserStats struct {
 	PenaltyHits int
 	RedCardBets int
 	RedCardHits int
-	OwnGoalBets int
-	OwnGoalHits int
-	TotalPoints int
+	OwnGoalBets  int
+	OwnGoalHits  int
+	TotalPoints  int
+	DoubleDowns  int
+	DoubleDownHits int
 }
 
 func (s *UserStats) Miss() int {
