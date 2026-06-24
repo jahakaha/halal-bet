@@ -148,6 +148,10 @@ func ParseEvents(events []Event) (hadRedCard, hadPenalty, hadOwnGoal bool) {
 			if e.Detail == "Own Goal" {
 				hadOwnGoal = true
 			}
+		case "Miss":
+			if e.Detail == "Missed Penalty" {
+				hadPenalty = true
+			}
 		}
 	}
 	return

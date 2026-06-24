@@ -17,6 +17,7 @@ type GroupRepository interface {
 	AddMember(ctx context.Context, groupID, userID int64) error
 	Leaderboard(ctx context.Context, groupID int64) ([]model.GroupLeaderboardEntry, error)
 	GetMembersWithoutBet(ctx context.Context, groupID, matchID int64) ([]string, error)
+	GetGroupStats(ctx context.Context, groupID int64) ([]model.UserStats, error)
 }
 
 type groupRepository struct {
@@ -190,4 +191,57 @@ func (r *groupRepository) GetMembersWithoutBet(ctx context.Context, groupID, mat
 		usernames = append(usernames, username)
 	}
 	return usernames, rows.Err()
+}
+
+func (r *groupRepository) GetGroupStats(ctx context.Context, groupID int64) ([]model.UserStats, error) {
+	const q = `
+	SELECT
+		u.username,
+		COUNT(*)::int AS total,
+		COUNT(*) FILTER (WHERE p.home_score = m.home_score AND p.away_score = m.away_score)::int AS exact_count,
+		COUNT(*) FILTER (WHERE
+			(p.home_score - p.away_score) = (m.home_score - m.away_score)
+			AND NOT (p.home_score = m.home_score AND p.away_score = m.away_score)
+		)::int AS diff_count,
+		COUNT(*) FILTER (WHERE
+			SIGN(p.home_score - p.away_score) = SIGN(m.home_score - m.away_score)
+			AND (p.home_score - p.away_score) != (m.home_score - m.away_score)
+		)::int AS outcome_count,
+		COUNT(*) FILTER (WHERE p.bet_penalty)::int AS penalty_bets,
+		COUNT(*) FILTER (WHERE p.bet_penalty AND m.had_penalty = true)::int AS penalty_hits,
+		COUNT(*) FILTER (WHERE p.bet_red_card)::int AS redcard_bets,
+		COUNT(*) FILTER (WHERE p.bet_red_card AND m.had_red_card = true)::int AS redcard_hits,
+		COUNT(*) FILTER (WHERE p.bet_own_goal)::int AS owngoal_bets,
+		COUNT(*) FILTER (WHERE p.bet_own_goal AND m.had_own_goal = true)::int AS owngoal_hits,
+		COALESCE(SUM(p.points), 0) AS total_points
+	FROM predictions p
+	JOIN users u ON u.id = p.user_id
+	JOIN wc2026_matches m ON m.id = p.match_id
+	JOIN group_members gm ON gm.user_id = p.user_id AND gm.group_id = $1
+	WHERE m.status = 'FINISHED'
+	GROUP BY u.id, u.username
+	ORDER BY total_points DESC, u.username ASC`
+
+	rows, err := r.db.Query(ctx, q, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []model.UserStats
+	for rows.Next() {
+		var s model.UserStats
+		if err := rows.Scan(
+			&s.Username, &s.Total,
+			&s.Exact, &s.Diff, &s.Outcome,
+			&s.PenaltyBets, &s.PenaltyHits,
+			&s.RedCardBets, &s.RedCardHits,
+			&s.OwnGoalBets, &s.OwnGoalHits,
+			&s.TotalPoints,
+		); err != nil {
+			return nil, err
+		}
+		result = append(result, s)
+	}
+	return result, rows.Err()
 }
