@@ -52,6 +52,10 @@ type fixtureResponse struct {
 type Event struct {
 	Type   string `json:"type"`
 	Detail string `json:"detail"`
+	Time   struct {
+		Elapsed int  `json:"elapsed"`
+		Extra   *int `json:"extra"`
+	} `json:"time"`
 }
 
 type eventsResponse struct {
@@ -134,6 +138,7 @@ func isWorldCup(leagueName string) bool {
 }
 
 // ParseEvents extracts red card, penalty, own goal flags from fixture events.
+// Penalty shootout kicks (elapsed > 120) are excluded — only in-game penalties count.
 func ParseEvents(events []Event) (hadRedCard, hadPenalty, hadOwnGoal bool) {
 	for _, e := range events {
 		switch e.Type {
@@ -142,14 +147,14 @@ func ParseEvents(events []Event) (hadRedCard, hadPenalty, hadOwnGoal bool) {
 				hadRedCard = true
 			}
 		case "Goal":
-			if e.Detail == "Penalty" {
+			if e.Detail == "Penalty" && e.Time.Elapsed <= 120 {
 				hadPenalty = true
 			}
 			if e.Detail == "Own Goal" {
 				hadOwnGoal = true
 			}
 		case "Miss":
-			if e.Detail == "Missed Penalty" {
+			if e.Detail == "Missed Penalty" && e.Time.Elapsed <= 120 {
 				hadPenalty = true
 			}
 		}

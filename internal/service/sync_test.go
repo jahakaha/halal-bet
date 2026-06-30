@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"halal-bet/internal/client/apifootball"
+	"halal-bet/internal/client/footballdata"
 	"halal-bet/internal/model"
 )
 
@@ -280,6 +281,65 @@ func TestQuietWindowSleep(t *testing.T) {
 	// We can't control time.Now(), so we test the logic indirectly via boundaries.
 	// This is a sanity check that the function exists and compiles.
 	_ = quietWindowSleep()
+}
+
+func TestRegulationScore(t *testing.T) {
+	home1, away1 := 1, 1
+	home4, away5 := 4, 5
+
+	cases := []struct {
+		name      string
+		duration  string
+		fullTime  [2]*int
+		regTime   [2]*int
+		wantHome  *int
+		wantAway  *int
+	}{
+		{
+			name:     "regular match uses fullTime",
+			duration: "REGULAR",
+			fullTime: [2]*int{&home1, &away1},
+			wantHome: &home1, wantAway: &away1,
+		},
+		{
+			name:     "PSO match with regularTime provided",
+			duration: "PENALTY_SHOOTOUT",
+			fullTime: [2]*int{&home4, &away5},
+			regTime:  [2]*int{&home1, &away1},
+			wantHome: &home1, wantAway: &away1,
+		},
+		{
+			name:     "PSO match without regularTime returns nil (preserve DB score)",
+			duration: "PENALTY_SHOOTOUT",
+			fullTime: [2]*int{&home4, &away5},
+			wantHome: nil, wantAway: nil,
+		},
+		{
+			name:     "extra time match without regularTime returns nil",
+			duration: "EXTRA_TIME",
+			fullTime: [2]*int{&home4, &away5},
+			wantHome: nil, wantAway: nil,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			am := footballdata.Match{}
+			am.Score.Duration = tc.duration
+			am.Score.FullTime.Home = tc.fullTime[0]
+			am.Score.FullTime.Away = tc.fullTime[1]
+			am.Score.RegularTime.Home = tc.regTime[0]
+			am.Score.RegularTime.Away = tc.regTime[1]
+
+			gotHome, gotAway := regulationScore(am)
+			if gotHome != tc.wantHome && (gotHome == nil || tc.wantHome == nil || *gotHome != *tc.wantHome) {
+				t.Errorf("home: got %v, want %v", gotHome, tc.wantHome)
+			}
+			if gotAway != tc.wantAway && (gotAway == nil || tc.wantAway == nil || *gotAway != *tc.wantAway) {
+				t.Errorf("away: got %v, want %v", gotAway, tc.wantAway)
+			}
+		})
+	}
 }
 
 func TestNameMatch(t *testing.T) {

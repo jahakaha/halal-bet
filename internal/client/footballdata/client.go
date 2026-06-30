@@ -36,10 +36,20 @@ type Match struct {
 		Name string `json:"name"`
 	} `json:"awayTeam"`
 	Score struct {
+		// Duration is "REGULAR", "EXTRA_TIME", or "PENALTY_SHOOTOUT".
+		Duration string `json:"duration"`
+		// FullTime is the score at the end of the match (may include ET goals;
+		// for PSO matches the API puts the penalty score here).
 		FullTime struct {
 			Home *int `json:"home"`
 			Away *int `json:"away"`
 		} `json:"fullTime"`
+		// RegularTime is the 90-min score, populated by the API only for
+		// EXTRA_TIME and PENALTY_SHOOTOUT matches.
+		RegularTime struct {
+			Home *int `json:"home"`
+			Away *int `json:"away"`
+		} `json:"regularTime"`
 	} `json:"score"`
 }
 
