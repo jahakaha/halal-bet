@@ -273,6 +273,25 @@ func normalizeName(s string) string {
 }
 
 
+// regulationScore returns the 90-minute score for betting purposes.
+//
+// The football-data.org v4 API:
+//   - REGULAR matches: fullTime = 90-min score (correct as-is)
+//   - EXTRA_TIME / PENALTY_SHOOTOUT matches: fullTime may contain the ET or
+//     shootout score. The API populates regularTime with the 90-min score for
+//     these cases; if it's missing we return nil so the DB retains whatever
+//     regulation score was stored during live sync rather than overwriting it
+//     with the shootout score.
+func regulationScore(am footballdata.Match) (*int, *int) {
+	if am.Score.RegularTime.Home != nil {
+		return am.Score.RegularTime.Home, am.Score.RegularTime.Away
+	}
+	if am.Score.Duration == "PENALTY_SHOOTOUT" || am.Score.Duration == "EXTRA_TIME" {
+		return nil, nil
+	}
+	return am.Score.FullTime.Home, am.Score.FullTime.Away
+}
+
 func convertMatches(apiMatches []footballdata.Match) ([]model.Match, error) {
 	matches := make([]model.Match, 0, len(apiMatches))
 	for _, am := range apiMatches {
@@ -281,14 +300,15 @@ func convertMatches(apiMatches []footballdata.Match) ([]model.Match, error) {
 			return nil, fmt.Errorf("parse match date %q: %w", am.UTCDate, err)
 		}
 
+		home, away := regulationScore(am)
 		matches = append(matches, model.Match{
 			ExternalID: am.ID,
 			HomeTeam:   am.HomeTeam.Name,
 			AwayTeam:   am.AwayTeam.Name,
 			MatchDate:  matchDate.UTC(),
 			Status:     model.MatchStatus(am.Status),
-			HomeScore:  am.Score.FullTime.Home,
-			AwayScore:  am.Score.FullTime.Away,
+			HomeScore:  home,
+			AwayScore:  away,
 			Stage:      am.Stage,
 			Group:      am.Group,
 			Matchday:   am.Matchday,

@@ -41,7 +41,7 @@ func buildStatsMsg(stats []model.UserStats) string {
 		if name == "" {
 			name = "Аноним"
 		}
-		sb.WriteString(fmt.Sprintf("<b>@%s</b> — %d ставок\n", name, s.Total))
+		sb.WriteString(fmt.Sprintf("<b>@%s</b> — %d ставок · %d очков\n", name, s.Total, s.TotalPoints))
 		sb.WriteString(fmt.Sprintf(
 			"🎯 %d (%d%%)  ↕️ %d (%d%%)  ✓ %d (%d%%)  ✗ %d (%d%%)\n",
 			s.Exact, calcPct(s.Exact, s.Total),
