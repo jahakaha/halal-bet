@@ -20,6 +20,7 @@ type MatchRepository interface {
 	GetFinishedForEventSync(ctx context.Context) ([]model.Match, error)
 	UpdateEvents(ctx context.Context, matchID, sofascoreID int64, hadRedCard, hadPenalty, hadOwnGoal bool) error
 	UpdateStatus(ctx context.Context, matchID int64, status model.MatchStatus, homeScore, awayScore *int) error
+	GetAllFinished(ctx context.Context) ([]model.Match, error)
 	GetGroupStandings(ctx context.Context, groupName string) ([]model.StandingEntry, error)
 }
 
@@ -307,6 +308,42 @@ func (r *matchRepository) UpdateStatus(ctx context.Context, matchID int64, statu
 	}
 	_, err = r.db.Exec(ctx, sql, args...)
 	return err
+}
+
+func (r *matchRepository) GetAllFinished(ctx context.Context) ([]model.Match, error) {
+	sql, args, err := psql.
+		Select("id", "external_id", "home_team", "away_team", "match_date",
+			"status", "home_score", "away_score", "stage", "group_name", "matchday",
+			"had_red_card", "had_penalty", "had_own_goal", "updated_at").
+		From("wc2026_matches").
+		Where("status = ? AND home_score IS NOT NULL AND away_score IS NOT NULL",
+			string(model.MatchStatusFinished)).
+		OrderBy("match_date ASC").
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := r.db.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var matches []model.Match
+	for rows.Next() {
+		var m model.Match
+		if err := rows.Scan(
+			&m.ID, &m.ExternalID, &m.HomeTeam, &m.AwayTeam,
+			&m.MatchDate, &m.Status, &m.HomeScore, &m.AwayScore,
+			&m.Stage, &m.Group, &m.Matchday,
+			&m.HadRedCard, &m.HadPenalty, &m.HadOwnGoal, &m.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		matches = append(matches, m)
+	}
+	return matches, rows.Err()
 }
 
 func (r *matchRepository) GetGroupStandings(ctx context.Context, groupName string) ([]model.StandingEntry, error) {

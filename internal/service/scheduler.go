@@ -20,6 +20,9 @@ func StartScheduler(notif *NotificationService, sync *SyncService) {
 	go runDaily(12, 0, almatyLoc, "results", func() {
 		ctx := context.Background()
 		syncAll(ctx, sync)
+		if err := sync.RecalculateAllFinished(ctx); err != nil {
+			log.Printf("scheduler: recalculate: %v", err)
+		}
 		notif.SendDailyResults(ctx, time.Now())
 	})
 	go runDaily(12, 5, almatyLoc, "matches", func() {

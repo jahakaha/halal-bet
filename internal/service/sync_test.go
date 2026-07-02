@@ -43,6 +43,9 @@ func (m *mockMatchRepo) GetFinishedForEventSync(_ context.Context) ([]model.Matc
 func (m *mockMatchRepo) UpdateEvents(_ context.Context, _, _ int64, _, _, _ bool) error {
 	return nil
 }
+func (m *mockMatchRepo) GetAllFinished(_ context.Context) ([]model.Match, error) {
+	return m.matches, nil
+}
 func (m *mockMatchRepo) GetGroupStandings(_ context.Context, _ string) ([]model.StandingEntry, error) {
 	return nil, nil
 }
