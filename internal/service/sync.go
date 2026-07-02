@@ -273,6 +273,40 @@ func normalizeName(s string) string {
 }
 
 
+// RecalculateAllFinished recalculates points for every finished match.
+// Called once a day at noon to correct any stale points (e.g. when the stored
+// score was updated after the initial calculation).
+func (s *SyncService) RecalculateAllFinished(ctx context.Context) error {
+	matches, err := s.matches.GetAllFinished(ctx)
+	if err != nil {
+		return err
+	}
+	for _, m := range matches {
+		preds, err := s.predictions.GetByMatch(ctx, m.ID)
+		if err != nil {
+			return fmt.Errorf("get predictions for match %d: %w", m.ID, err)
+		}
+		points := make(map[int64]int, len(preds))
+		for _, p := range preds {
+			pts := model.CalcPoints(&p, &m)
+			if pts == nil {
+				continue
+			}
+			if p.Points != nil && *p.Points == *pts {
+				continue
+			}
+			points[p.ID] = *pts
+		}
+		if len(points) == 0 {
+			continue
+		}
+		if err := s.predictions.UpdatePoints(ctx, m.ID, points); err != nil {
+			return fmt.Errorf("update points for match %d: %w", m.ID, err)
+		}
+	}
+	return nil
+}
+
 // regulationScore returns the 90-minute score for betting purposes.
 //
 // The football-data.org v4 API:
