@@ -10,7 +10,7 @@ tool (
 
 require (
 	github.com/Masterminds/squirrel v1.5.4
-	github.com/go-chi/chi/v5 v5.3.0
+	github.com/go-chi/chi/v5 v5.3.1
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/pressly/goose/v3 v3.27.1
 	gopkg.in/telebot.v3 v3.3.8
