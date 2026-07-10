@@ -215,7 +215,7 @@ func (r *matchRepository) GetFinishedForEventSync(ctx context.Context) ([]model.
 			"m.stage", "m.group_name", "m.matchday", "m.updated_at").
 		From("wc2026_matches m").
 		Join("predictions p ON p.match_id = m.id").
-		Where("m.status = ? AND m.had_red_card IS NULL AND (p.bet_penalty OR p.bet_red_card OR p.bet_own_goal)",
+		Where("m.status = ? AND (m.had_red_card IS NULL OR m.match_date > NOW() - INTERVAL '6 hours') AND (p.bet_penalty OR p.bet_red_card OR p.bet_own_goal)",
 			string(model.MatchStatusFinished)).
 		ToSql()
 	if err != nil {
