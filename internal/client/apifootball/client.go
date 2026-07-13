@@ -146,6 +146,10 @@ func ParseEvents(events []Event) (hadRedCard, hadPenalty, hadOwnGoal bool) {
 			if e.Detail == "Red Card" || e.Detail == "Yellow Red Card" {
 				hadRedCard = true
 			}
+		case "Var":
+			if e.Detail == "Red Card" {
+				hadRedCard = true
+			}
 		case "Goal":
 			if e.Detail == "Penalty" && e.Time.Elapsed <= 120 {
 				hadPenalty = true
