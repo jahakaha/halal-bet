@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 
@@ -17,7 +18,7 @@ type SyncService interface {
 }
 
 type TournamentRepository interface {
-	GetSummary(ctx context.Context) ([]model.TournamentPredictionSummary, error)
+	GetSummary(ctx context.Context, groupID int64) ([]model.TournamentPredictionSummary, error)
 }
 
 type Handler struct {
@@ -33,7 +34,7 @@ func (h *Handler) Register(r chi.Router) {
 	r.Get("/health", h.health)
 	r.Post("/sync/wc2026", h.syncWC2026)
 	r.Post("/sync/events", h.syncEvents)
-	r.Get("/tournament/predictions", h.tournamentPredictions)
+	r.Get("/groups/{groupID}/tournament/predictions", h.tournamentPredictions)
 }
 
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
@@ -60,7 +61,13 @@ func (h *Handler) syncEvents(w http.ResponseWriter, r *http.Request) {
 
 // tournamentPredictions returns each user's tournament choices and points.
 func (h *Handler) tournamentPredictions(w http.ResponseWriter, r *http.Request) {
-	predictions, err := h.tournament.GetSummary(r.Context())
+	groupID, err := strconv.ParseInt(chi.URLParam(r, "groupID"), 10, 64)
+	if err != nil || groupID <= 0 {
+		http.Error(w, "invalid groupID", http.StatusBadRequest)
+		return
+	}
+
+	predictions, err := h.tournament.GetSummary(r.Context(), groupID)
 	if err != nil {
 		http.Error(w, "get tournament predictions: "+err.Error(), http.StatusInternalServerError)
 		return

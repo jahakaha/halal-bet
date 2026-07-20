@@ -12,7 +12,7 @@ type TournamentRepository interface {
 	Upsert(ctx context.Context, userID int64, betType, value string) error
 	GetByUser(ctx context.Context, userID int64) ([]model.TournamentPrediction, error)
 	GetAll(ctx context.Context) ([]model.TournamentPredictionWithUser, error)
-	GetSummary(ctx context.Context) ([]model.TournamentPredictionSummary, error)
+	GetSummary(ctx context.Context, groupID int64) ([]model.TournamentPredictionSummary, error)
 	UpdatePoints(ctx context.Context, betType, value string, points int) error
 }
 
@@ -83,22 +83,20 @@ func (r *tournamentRepository) GetAll(ctx context.Context) ([]model.TournamentPr
 	return result, rows.Err()
 }
 
-func (r *tournamentRepository) GetSummary(ctx context.Context) ([]model.TournamentPredictionSummary, error) {
+func (r *tournamentRepository) GetSummary(ctx context.Context, groupID int64) ([]model.TournamentPredictionSummary, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT
 			COALESCE(u.username, '') AS username,
 			COALESCE(MAX(tp.value) FILTER (WHERE tp.type = 'winner'), '') AS team,
-			COALESCE(MAX(tp.points) FILTER (WHERE tp.type = 'winner'), 0)::int AS team_points,
 			COALESCE(MAX(tp.value) FILTER (WHERE tp.type = 'top_scorer'), '') AS top_scorer,
-			COALESCE(MAX(tp.points) FILTER (WHERE tp.type = 'top_scorer'), 0)::int AS top_scorer_points
+			COALESCE(SUM(tp.points), 0)::int AS points
 		FROM tournament_predictions tp
 		JOIN users u ON u.id = tp.user_id
+		JOIN group_members gm ON gm.user_id = tp.user_id
+		WHERE gm.group_id = $1
 		GROUP BY u.id, u.username
-		ORDER BY
-			COALESCE(MAX(tp.points) FILTER (WHERE tp.type = 'winner'), 0)
-			+ COALESCE(MAX(tp.points) FILTER (WHERE tp.type = 'top_scorer'), 0) DESC,
-			u.username ASC
-	`)
+		ORDER BY points DESC, u.username ASC
+	`, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +105,7 @@ func (r *tournamentRepository) GetSummary(ctx context.Context) ([]model.Tourname
 	var result []model.TournamentPredictionSummary
 	for rows.Next() {
 		var p model.TournamentPredictionSummary
-		if err := rows.Scan(&p.Username, &p.Team, &p.TeamPoints, &p.TopScorer, &p.TopScorerPoints); err != nil {
+		if err := rows.Scan(&p.Username, &p.Team, &p.TopScorer, &p.Points); err != nil {
 			return nil, err
 		}
 		result = append(result, p)

@@ -28,9 +28,8 @@ type TournamentPredictionWithUser struct {
 // TournamentPredictionSummary is a user's two tournament choices and the
 // points they earned from them.
 type TournamentPredictionSummary struct {
-	Username        string `json:"username"`
-	Team            string `json:"team"`
-	TeamPoints      int    `json:"team_points"`
-	TopScorer       string `json:"top_scorer"`
-	TopScorerPoints int    `json:"top_scorer_points"`
+	Username  string `json:"username"`
+	Team      string `json:"team"`
+	TopScorer string `json:"top_scorer"`
+	Points    int    `json:"points"`
 }
