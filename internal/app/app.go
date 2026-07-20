@@ -75,7 +75,7 @@ func Run() error {
 	go b.Start()
 
 	r := chi.NewRouter()
-	handler.New(syncSvc).Register(r)
+	handler.New(syncSvc, tournament).Register(r)
 
 	log.Printf("listening on :%s", cfg.Port)
 	return http.ListenAndServe(":"+cfg.Port, r)

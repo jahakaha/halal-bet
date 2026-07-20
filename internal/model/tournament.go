@@ -11,16 +11,26 @@ const (
 )
 
 type TournamentPrediction struct {
-	ID        int64
-	UserID    int64
-	Type      string
-	Value     string
-	Points    *int
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID        int64     `json:"id"`
+	UserID    int64     `json:"user_id"`
+	Type      string    `json:"type"`
+	Value     string    `json:"value"`
+	Points    *int      `json:"points"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type TournamentPredictionWithUser struct {
 	TournamentPrediction
-	Username string
+	Username string `json:"username"`
+}
+
+// TournamentPredictionSummary is a user's two tournament choices and the
+// points they earned from them.
+type TournamentPredictionSummary struct {
+	Username        string `json:"username"`
+	Team            string `json:"team"`
+	TeamPoints      int    `json:"team_points"`
+	TopScorer       string `json:"top_scorer"`
+	TopScorerPoints int    `json:"top_scorer_points"`
 }
