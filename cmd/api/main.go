@@ -2,16 +2,16 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
-
-	"database/sql"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -83,8 +83,14 @@ func main() {
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	r.Get("/tournament/predictions", func(w http.ResponseWriter, r *http.Request) {
-		predictions, err := tournament.GetSummary(r.Context())
+	r.Get("/groups/{groupID}/tournament/predictions", func(w http.ResponseWriter, r *http.Request) {
+		groupID, err := strconv.ParseInt(chi.URLParam(r, "groupID"), 10, 64)
+		if err != nil || groupID <= 0 {
+			http.Error(w, "invalid groupID", http.StatusBadRequest)
+			return
+		}
+
+		predictions, err := tournament.GetSummary(r.Context(), groupID)
 		if err != nil {
 			http.Error(w, "get tournament predictions: "+err.Error(), http.StatusInternalServerError)
 			return
