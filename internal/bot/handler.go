@@ -60,6 +60,7 @@ func (h *Handler) Register(b *tele.Bot) {
 	b.Handle("/bets", h.Bets)
 	b.Handle("/groups", h.Groups)
 	b.Handle("/predict", h.Predict)
+	b.Handle("/tournament_results", h.TournamentResults)
 	b.Handle("/me", h.Me)
 	b.Handle("/stats", h.Stats)
 
@@ -74,6 +75,7 @@ func (h *Handler) Register(b *tele.Bot) {
 		{Text: "me", Description: "Моя история ставок"},
 		{Text: "groups", Description: "Таблица групп ЧМ26"},
 		{Text: "predict", Description: "Предсказания на ЧМ26"},
+		{Text: "tournament_results", Description: "Ставки на турнир"},
 		{Text: "stats", Description: "Статистика группы"},
 		{Text: "description", Description: "Правила игры"},
 	})

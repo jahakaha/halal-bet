@@ -56,6 +56,27 @@ func (h *Handler) Predict(c tele.Context) error {
 	}, tele.ModeMarkdown)
 }
 
+// TournamentResults shows tournament predictions and their earned points for
+// members of the current Telegram group.
+func (h *Handler) TournamentResults(c tele.Context) error {
+	if c.Chat().Type == tele.ChatPrivate {
+		return c.Send("Результаты доступны только в групповом чате.")
+	}
+
+	_ = h.registerGroupMember(c)
+	ctx := context.Background()
+	group, err := h.groups.GetByChatID(ctx, c.Chat().ID)
+	if err != nil {
+		return c.Send("Группа не зарегистрирована. Напишите /start сначала.")
+	}
+
+	predictions, err := h.tournament.GetSummary(ctx, group.ID)
+	if err != nil {
+		return err
+	}
+	return c.Send(formatTournamentGroupResults(predictions), tele.ModeMarkdown)
+}
+
 func (h *Handler) handleTournamentBet(c tele.Context, betType string) error {
 	ctx := context.Background()
 	user, err := h.users.GetByTelegramID(ctx, c.Sender().ID)
@@ -150,4 +171,22 @@ func formatTournamentResults(preds []model.TournamentPrediction) string {
 	}
 	sb.WriteString("\n_Приём ставок закрыт_")
 	return sb.String()
+}
+
+func formatTournamentGroupResults(preds []model.TournamentPredictionSummary) string {
+	if len(preds) == 0 {
+		return "🔮 В этой группе пока нет ставок на турнир."
+	}
+
+	var sb strings.Builder
+	sb.WriteString("🔮 *Ставки на ЧМ26*\n\n")
+	for _, p := range preds {
+		name := p.Username
+		if name == "" {
+			name = "Аноним"
+		}
+		sb.WriteString(fmt.Sprintf("*%s* — %d %s\n🏆 %s\n⚽️ %s\n\n",
+			name, p.Points, pointWord(p.Points), p.Team, p.TopScorer))
+	}
+	return strings.TrimSuffix(sb.String(), "\n")
 }
