@@ -129,24 +129,32 @@ func (r *groupRepository) AddMember(ctx context.Context, groupID, userID int64) 
 }
 
 func (r *groupRepository) Leaderboard(ctx context.Context, groupID int64) ([]model.GroupLeaderboardEntry, error) {
-	query, args, err := psql.
-		Select(
-			"u.username",
-			"COALESCE(SUM(p.points), 0) AS total_points",
-			"COUNT(p.id) AS predictions_made",
-		).
-		From("group_members gm").
-		Join("users u ON u.id = gm.user_id").
-		LeftJoin("predictions p ON p.user_id = u.id AND p.points IS NOT NULL").
-		Where("gm.group_id = ?", groupID).
-		GroupBy("u.id", "u.username").
-		OrderBy("total_points DESC", "u.username ASC").
-		ToSql()
-	if err != nil {
-		return nil, err
-	}
+	// Aggregate each source before joining. Joining predictions and
+	// tournament_predictions directly would multiply rows for users that have
+	// both kinds of bets, and therefore inflate their scores.
+	const query = `
+		SELECT
+			u.username,
+			COALESCE(mp.total_points, 0) + COALESCE(tp.total_points, 0) AS total_points,
+			COALESCE(mp.predictions_made, 0) AS predictions_made
+		FROM group_members gm
+		JOIN users u ON u.id = gm.user_id
+		LEFT JOIN (
+			SELECT user_id, COALESCE(SUM(points), 0) AS total_points, COUNT(id) AS predictions_made
+			FROM predictions
+			WHERE points IS NOT NULL
+			GROUP BY user_id
+		) mp ON mp.user_id = u.id
+		LEFT JOIN (
+			SELECT user_id, COALESCE(SUM(points), 0) AS total_points
+			FROM tournament_predictions
+			WHERE points IS NOT NULL
+			GROUP BY user_id
+		) tp ON tp.user_id = u.id
+		WHERE gm.group_id = $1
+		ORDER BY total_points DESC, u.username ASC`
 
-	rows, err := r.db.Query(ctx, query, args...)
+	rows, err := r.db.Query(ctx, query, groupID)
 	if err != nil {
 		return nil, err
 	}

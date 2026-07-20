@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -81,6 +82,18 @@ func main() {
 	r := chi.NewRouter()
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
+	})
+	r.Get("/tournament/predictions", func(w http.ResponseWriter, r *http.Request) {
+		predictions, err := tournament.GetSummary(r.Context())
+		if err != nil {
+			http.Error(w, "get tournament predictions: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		if err := json.NewEncoder(w).Encode(predictions); err != nil {
+			http.Error(w, "encode tournament predictions: "+err.Error(), http.StatusInternalServerError)
+		}
 	})
 	r.Post("/debug/set-date", func(w http.ResponseWriter, req *http.Request) {
 		dateStr := req.URL.Query().Get("date")
@@ -162,4 +175,3 @@ func parseDateParam(s string) (time.Time, error) {
 	}
 	return time.Parse("2006-01-02", s)
 }
-

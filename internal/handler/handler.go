@@ -2,10 +2,13 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+
+	"halal-bet/internal/model"
 )
 
 type SyncService interface {
@@ -13,18 +16,24 @@ type SyncService interface {
 	SyncMatchEvents(ctx context.Context) (int, error)
 }
 
-type Handler struct {
-	sync SyncService
+type TournamentRepository interface {
+	GetSummary(ctx context.Context) ([]model.TournamentPredictionSummary, error)
 }
 
-func New(sync SyncService) *Handler {
-	return &Handler{sync: sync}
+type Handler struct {
+	sync       SyncService
+	tournament TournamentRepository
+}
+
+func New(sync SyncService, tournament TournamentRepository) *Handler {
+	return &Handler{sync: sync, tournament: tournament}
 }
 
 func (h *Handler) Register(r chi.Router) {
 	r.Get("/health", h.health)
 	r.Post("/sync/wc2026", h.syncWC2026)
-r.Post("/sync/events", h.syncEvents)
+	r.Post("/sync/events", h.syncEvents)
+	r.Get("/tournament/predictions", h.tournamentPredictions)
 }
 
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
@@ -47,4 +56,18 @@ func (h *Handler) syncEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fmt.Fprintf(w, "synced events for %d matches\n", n)
+}
+
+// tournamentPredictions returns each user's tournament choices and points.
+func (h *Handler) tournamentPredictions(w http.ResponseWriter, r *http.Request) {
+	predictions, err := h.tournament.GetSummary(r.Context())
+	if err != nil {
+		http.Error(w, "get tournament predictions: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if err := json.NewEncoder(w).Encode(predictions); err != nil {
+		http.Error(w, "encode tournament predictions: "+err.Error(), http.StatusInternalServerError)
+	}
 }

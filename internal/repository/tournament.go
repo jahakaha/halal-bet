@@ -12,6 +12,7 @@ type TournamentRepository interface {
 	Upsert(ctx context.Context, userID int64, betType, value string) error
 	GetByUser(ctx context.Context, userID int64) ([]model.TournamentPrediction, error)
 	GetAll(ctx context.Context) ([]model.TournamentPredictionWithUser, error)
+	GetSummary(ctx context.Context) ([]model.TournamentPredictionSummary, error)
 	UpdatePoints(ctx context.Context, betType, value string, points int) error
 }
 
@@ -75,6 +76,38 @@ func (r *tournamentRepository) GetAll(ctx context.Context) ([]model.TournamentPr
 			&p.ID, &p.UserID, &p.Type, &p.Value, &p.Points,
 			&p.CreatedAt, &p.UpdatedAt, &p.Username,
 		); err != nil {
+			return nil, err
+		}
+		result = append(result, p)
+	}
+	return result, rows.Err()
+}
+
+func (r *tournamentRepository) GetSummary(ctx context.Context) ([]model.TournamentPredictionSummary, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT
+			COALESCE(u.username, '') AS username,
+			COALESCE(MAX(tp.value) FILTER (WHERE tp.type = 'winner'), '') AS team,
+			COALESCE(MAX(tp.points) FILTER (WHERE tp.type = 'winner'), 0)::int AS team_points,
+			COALESCE(MAX(tp.value) FILTER (WHERE tp.type = 'top_scorer'), '') AS top_scorer,
+			COALESCE(MAX(tp.points) FILTER (WHERE tp.type = 'top_scorer'), 0)::int AS top_scorer_points
+		FROM tournament_predictions tp
+		JOIN users u ON u.id = tp.user_id
+		GROUP BY u.id, u.username
+		ORDER BY
+			COALESCE(MAX(tp.points) FILTER (WHERE tp.type = 'winner'), 0)
+			+ COALESCE(MAX(tp.points) FILTER (WHERE tp.type = 'top_scorer'), 0) DESC,
+			u.username ASC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []model.TournamentPredictionSummary
+	for rows.Next() {
+		var p model.TournamentPredictionSummary
+		if err := rows.Scan(&p.Username, &p.Team, &p.TeamPoints, &p.TopScorer, &p.TopScorerPoints); err != nil {
 			return nil, err
 		}
 		result = append(result, p)
